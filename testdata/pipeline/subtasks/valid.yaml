@@ -1,0 +1,24 @@
+subtasks:
+  - id: st-01
+    title: "Add config schema"
+    description: "Define the config structs and defaults."
+    deps: []
+    files: ["internal/config/**"]
+    acceptance:
+      - "Config struct mirrors the documented schema."
+      - "Default() returns a fully-populated config."
+    manualTest: "Run config show and eyeball the defaults."
+  - id: st-02
+    title: "Wire the loader"
+    description: "Layer and deep-merge the config files."
+    deps: ["st-01"]
+    files: ["internal/config/load.go"]
+    acceptance:
+      - "Later layers override earlier ones per key."
+  - id: st-03
+    title: "Validate the config"
+    description: "Add Validate with actionable errors."
+    deps: ["st-01", "st-02"]
+    files: ["internal/config/validate.go"]
+    acceptance:
+      - "Unknown top-level keys are rejected."

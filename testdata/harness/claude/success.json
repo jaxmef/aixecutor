@@ -1,0 +1,17 @@
+{
+  "type": "result",
+  "subtype": "success",
+  "is_error": false,
+  "duration_ms": 12873,
+  "duration_api_ms": 11204,
+  "num_turns": 4,
+  "result": "Implemented the feature and all tests pass.",
+  "session_id": "9f1c2b7a-4d3e-4a21-8b6c-1e2f3a4b5c6d",
+  "total_cost_usd": 0.0421,
+  "usage": {
+    "input_tokens": 1843,
+    "output_tokens": 217,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 1200
+  }
+}

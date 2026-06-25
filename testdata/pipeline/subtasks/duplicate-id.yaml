@@ -1,0 +1,15 @@
+subtasks:
+  - id: st-01
+    title: "First"
+    description: "The first subtask."
+    deps: []
+    files: ["a/**"]
+    acceptance:
+      - "done"
+  - id: st-01
+    title: "Duplicate"
+    description: "Reuses st-01's id, which is illegal."
+    deps: []
+    files: ["b/**"]
+    acceptance:
+      - "done"

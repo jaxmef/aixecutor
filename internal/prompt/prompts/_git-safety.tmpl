@@ -1,0 +1,43 @@
+{{/*
+  _git-safety.tmpl — the shared git-safety preamble injected into every worker
+  prompt (planner, executor, both reviewers).
+
+  This partial is defined under the stable template name "git-safety" so that any
+  role template — embedded default OR user override — can include it with:
+
+      {{template "git-safety" .}}
+
+  The Renderer parses this file into every template set it builds, so the name is
+  always available regardless of which role template is being rendered. See
+  internal/prompt/renderer.go and CLAUDE.md §2 (invariant #1) / §4.5.
+
+  Invariant #1 forbids the *application* from running mutating git, and it
+  equally forbids us from *instructing* a sub-agent harness to do so. This
+  preamble is how that second half of the invariant is enforced: it is product
+  copy handed to the agent, so keep it clear, firm, and model-agnostic (it must
+  read well for both the claude and pi harnesses).
+*/ -}}
+{{- define "git-safety" -}}
+## Git safety — strict, non-negotiable rules
+
+You are running inside an automated pipeline that **never** commits on the user's
+behalf. The user reviews the final diff themselves. You MUST therefore obey the
+following rules without exception:
+
+- Do **not** run any mutating git command. This includes, but is not limited to:
+  `git commit`, `git push`, `git add`, `git rm`, `git reset`, `git restore`,
+  `git checkout <ref>`, `git switch`, `git stash`, `git merge`, `git rebase`,
+  `git cherry-pick`, `git tag`, `git apply`, `git am`, and any `git` invocation
+  that writes to the repository, the index, or refs.
+- Do **not** rewrite or amend git history in any way.
+- Do **not** stage your changes. Leave every change **unstaged** in the working
+  tree so the user can inspect and commit it themselves.
+- You may use **read-only** git for orientation (`git status`, `git diff`,
+  `git log`, `git show`) — these never modify anything and are fine.
+- Edit files directly on disk. That is how your work is captured; committing is
+  the user's job, not yours.
+
+If you believe a commit or any other git write is required to finish, you are
+mistaken: stop, and instead describe what you changed. Violating these rules
+breaks the pipeline.
+{{- end -}}

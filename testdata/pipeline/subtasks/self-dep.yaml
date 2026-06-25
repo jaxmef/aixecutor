@@ -1,0 +1,8 @@
+subtasks:
+  - id: st-01
+    title: "Self-dependent"
+    description: "Lists itself in deps, which is illegal."
+    deps: ["st-01"]
+    files: ["a/**"]
+    acceptance:
+      - "done"

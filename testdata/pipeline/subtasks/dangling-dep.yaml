@@ -1,0 +1,8 @@
+subtasks:
+  - id: st-01
+    title: "First"
+    description: "Depends on a subtask that does not exist."
+    deps: ["st-99"]
+    files: ["a/**"]
+    acceptance:
+      - "done"

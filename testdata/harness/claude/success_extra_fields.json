@@ -1,0 +1,26 @@
+{
+  "type": "result",
+  "subtype": "success",
+  "is_error": false,
+  "result": "Refactored the parser and added table-driven tests.",
+  "session_id": "11112222-3333-4444-5555-666677778888",
+  "total_cost_usd": 0.0193,
+  "duration_ms": 8421,
+  "num_turns": 3,
+  "usage": {
+    "input_tokens": 901,
+    "output_tokens": 88
+  },
+  "permission_denials": [],
+  "modelUsage": {
+    "claude-sonnet-4-6": {
+      "inputTokens": 901,
+      "outputTokens": 88
+    }
+  },
+  "some_future_field_we_do_not_model": {
+    "nested": true,
+    "values": [1, 2, 3]
+  },
+  "another_unknown_scalar": "ignored"
+}

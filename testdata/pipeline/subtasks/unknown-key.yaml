@@ -1,0 +1,8 @@
+subtasks:
+  - id: st-01
+    title: "Has a typo'd field"
+    description: "The 'dependencies' key is not in the schema (should be 'deps')."
+    dependencies: ["st-00"]
+    files: ["a/**"]
+    acceptance:
+      - "done"

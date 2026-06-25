@@ -1,0 +1,18 @@
+# Build output
+/bin/
+
+# Runtime artifacts written by the tool when users run it
+.aixecutor/runs/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Local files
+/local/
+*.local.md

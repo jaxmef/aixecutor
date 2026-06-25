@@ -1,0 +1,22 @@
+subtasks:
+  - id: st-01
+    title: "A"
+    description: "Depends on st-02."
+    deps: ["st-02"]
+    files: ["a/**"]
+    acceptance:
+      - "done"
+  - id: st-02
+    title: "B"
+    description: "Depends on st-03."
+    deps: ["st-03"]
+    files: ["b/**"]
+    acceptance:
+      - "done"
+  - id: st-03
+    title: "C"
+    description: "Depends on st-01, closing the cycle st-01 -> st-02 -> st-03 -> st-01."
+    deps: ["st-01"]
+    files: ["c/**"]
+    acceptance:
+      - "done"

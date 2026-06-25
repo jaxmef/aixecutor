@@ -1,0 +1,14 @@
+# Local layer fixture (stands in for <repo>/.aixecutor/config.yaml). Exercises
+# the deep-merge proof (set one sibling key) and list-replace (args). It also
+# overrides maxParallel so we can prove local-over-global precedence.
+roles:
+  executor:
+    harness: pi
+harnesses:
+  claude:
+    args:
+      - "-p"
+      - "{{.Prompt}}"
+pipeline:
+  execution:
+    maxParallel: 2

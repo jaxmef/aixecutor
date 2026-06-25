@@ -1,0 +1,8 @@
+subtasks:
+  - id: st-01
+    title: ""
+    description: "Has an id and description but an empty title."
+    deps: []
+    files: ["a/**"]
+    acceptance:
+      - "done"

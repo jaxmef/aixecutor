@@ -1,0 +1,8 @@
+# Global layer fixture (stands in for ~/.aixecutor/config.yaml). Overrides a few
+# scalars to prove global-over-default precedence.
+roles:
+  planner:
+    model: haiku
+pipeline:
+  execution:
+    maxParallel: 8

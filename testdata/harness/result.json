@@ -1,0 +1,11 @@
+{
+  "type": "result",
+  "subtype": "success",
+  "is_error": false,
+  "result": "Implemented the feature and all tests pass.",
+  "session_id": "abc-123",
+  "usage": {
+    "input_tokens": 42,
+    "output_tokens": 7
+  }
+}

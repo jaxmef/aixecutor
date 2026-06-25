@@ -1,0 +1,86 @@
+version: 1
+paths:
+  runsDir: .aixecutor/runs
+  docsSubdir: docs
+harnesses:
+  claude:
+    type: cli
+    command: claude
+    promptDelivery: arg
+    args: # from local (<LOCAL>)
+      - -p
+      - '{{.Prompt}}'
+    output: json
+    resultPath: result
+    timeout: 30m0s
+    retry:
+      maxAttempts: 2
+      backoff: 2s
+    env: {}
+  pi:
+    type: cli
+    command: pi
+    promptDelivery: arg
+    args:
+      - --print
+      - --model
+      - '{{.Model}}'
+      - '{{.Prompt}}'
+    output: text
+    timeout: 30m0s
+    retry:
+      maxAttempts: 2
+      backoff: 2s
+    env: {}
+roles:
+  planner:
+    harness: claude
+    model: haiku # from global (<GLOBAL>)
+    permissionMode: plan
+    promptTemplate: planner
+    timeout: 30m0s
+  executor:
+    harness: pi # from local (<LOCAL>)
+    model: sonnet
+    permissionMode: acceptEdits
+    promptTemplate: executor
+    timeout: 30m0s
+  subtaskReviewer:
+    harness: claude
+    model: sonnet
+    permissionMode: plan
+    promptTemplate: subtask-reviewer
+    timeout: 20m0s
+  seniorReviewer:
+    harness: claude
+    model: opus
+    permissionMode: plan
+    promptTemplate: senior-reviewer
+    timeout: 30m0s
+pipeline:
+  autostartExecution: true
+  execution:
+    parallel: true
+    maxParallel: 2 # from local (<LOCAL>)
+    isolation: non-overlapping
+  subtaskReview:
+    enabled: true
+    maxLoops: 3
+  seniorReview:
+    enabled: true
+    maxLoops: 3
+git:
+  policy: read-only
+backlog:
+  dir: ""
+  gate: manual
+workspace:
+  root: ""
+  maxDepth: 4
+  ignore:
+    - node_modules
+    - vendor
+    - dist
+    - build
+    - .next
+    - target
