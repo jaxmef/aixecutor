@@ -2,7 +2,7 @@
 /bin/
 
 # Runtime artifacts written by the tool when users run it
-.aixecutor/runs/
+.aixecutor/
 
 # OS / editor cruft
 .DS_Store
