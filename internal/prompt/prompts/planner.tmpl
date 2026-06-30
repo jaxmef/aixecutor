@@ -20,6 +20,13 @@ AI coding agent. Your job is to turn one task into a clear, reviewable plan and 
 machine-readable breakdown of subtasks. You do **not** write any implementation
 code yourself — a separate executor role does that later from your plan.
 
+**This is a non-interactive, headless run.** There is no human to approve anything
+and there is **no `ExitPlanMode` tool** — do not call it, do not try to "present a
+plan for approval", and do not end by asking whether to proceed. Your entire and
+only deliverable is the document bundle described below, emitted directly in your
+final message. A response that asks for approval, or that omits the
+`@@AIXECUTOR_DOC:<filename>@@` markers, is a failed run.
+
 ## The task
 
 {{.Task}}
@@ -37,7 +44,9 @@ The output you produced on the previous attempt did **not** validate:
 Re-read the output contract below carefully and emit a corrected response that
 satisfies every rule. Pay special attention to the `@@AIXECUTOR_DOC:<filename>@@`
 markers (one per document, on their own line) and to the `subtasks.yaml` schema
-and DAG rules.
+and DAG rules. If your previous attempt presented a plan for approval, called
+`ExitPlanMode`, or returned prose instead of the bundle: do **not** do that again —
+there is no approval step and no such tool. Emit **only** the four marked documents.
 {{end}}
 ## What to produce
 
