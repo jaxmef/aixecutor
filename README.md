@@ -46,7 +46,7 @@ because a complete default configuration is hardcoded into the binary.
             │    worker → reviewer remediation loop (≤ maxLoops), until clean.  │
             └───────────────────────────────────────────────────────────────────┘
                           ▼
-                   summary report — no git writes, your tree is staged for you to commit
+                   summary report — no git writes, changes left in your tree to commit
 ```
 
 Each labeled role (**planner**, **executor**, **subtask reviewer**, **senior reviewer**)
@@ -74,7 +74,7 @@ the whole diff — while staying strictly hands-off on your git history.
 
 ```bash
 go install github.com/jaxmef/aixecutor@latest
-aixecutor run "Add OAuth2 login with Google as a provider"
+aixecutor version   # verify it's on your PATH
 ```
 
 `@latest` resolves to the newest release tag (or pin one, e.g. `@v0.1.0`; `@main` tracks the branch).
@@ -89,46 +89,47 @@ aixecutor version   # confirm the installed version
 > `go install …@latest` is cached. If it doesn't pick up a fresh tag, run
 > `GOPROXY=direct go install github.com/jaxmef/aixecutor@latest` (or `go clean -cache`).
 
-**Build from source** — see [Quickstart](#quickstart) below.
+**Build from source:**
+
+```bash
+git clone https://github.com/jaxmef/aixecutor && cd aixecutor
+go install .                 # installs `aixecutor` onto your PATH
+# or `go build -o bin/aixecutor .` for a local binary under ./bin
+```
 
 ---
 
 ## Quickstart
 
-> Requires Go 1.26+. At least one supported harness CLI must be installed and on `PATH`
-> (e.g. [Claude Code](https://claude.com/claude-code)'s `claude`, or `pi`).
-
 ```bash
-# build
-go build -o bin/aixecutor .
-
 # run a task — no config needed, sensible defaults are built in
-bin/aixecutor run "Add OAuth2 login with Google as a provider"
+aixecutor run "Add OAuth2 login with Google as a provider"
 
-# planning only (write the docs, don't execute)
-bin/aixecutor plan "Add OAuth2 login with Google as a provider"
+# planning only (write the docs, don't execute) — then execute with `resume`
+aixecutor plan "Add OAuth2 login with Google as a provider"
+aixecutor resume <run-id>       # continue the planned run into execution
 
 # read the task from a file instead of typing it inline
-bin/aixecutor run --task-file spec.md
-bin/aixecutor run @spec.md          # @<path> shorthand (use @@ for a literal leading '@')
+aixecutor run --task-file spec.md
+aixecutor run @spec.md          # @<path> shorthand (use @@ for a literal leading '@')
 
 # or pipe it on stdin / compose it interactively (no task + no --task-file)
-bin/aixecutor run < spec.md         # piped/redirected stdin (multi-line)
-bin/aixecutor run                   # on a terminal: opens $VISUAL/$EDITOR (empty buffer aborts;
+aixecutor run < spec.md         # piped/redirected stdin (multi-line)
+aixecutor run                   # on a terminal: opens $VISUAL/$EDITOR (empty buffer aborts;
                                     # lines starting with '#', incl. Markdown headings, are dropped)
 
 # inspect / resume
-bin/aixecutor list
-bin/aixecutor status <run-id>
-bin/aixecutor resume <run-id>
+aixecutor list
+aixecutor status <run-id>
+aixecutor resume <run-id>
 
 # review checkpoint: pause a running run, then continue or amend the plan
-bin/aixecutor review <run-id>          # pause at the next subtask boundary
-bin/aixecutor amend  <run-id> --confirm # revert execution & restart from the edited docs
+aixecutor review <run-id>          # pause at the next subtask boundary
+aixecutor amend  <run-id> --confirm # revert execution & restart from the edited docs
 
 # see the effective merged configuration and where it came from
-bin/aixecutor config show
-bin/aixecutor config path
+aixecutor config show
+aixecutor config path
 ```
 
 When planning finishes, `aixecutor` prints the path to the generated markdown so you can
@@ -155,7 +156,7 @@ Point `aixecutor` at a directory of ticket files and it drives them through the 
 in dependency order, one ready ticket at a time:
 
 ```bash
-bin/aixecutor backlog run ./tickets
+aixecutor backlog run ./tickets
 ```
 
 Each ticket is a Markdown file with a small YAML frontmatter block; the body below it is
@@ -190,7 +191,7 @@ aixecutor runs in a single git repo by default, but a task can span more — poi
 dirs):
 
 ```bash
-bin/aixecutor --workspace ~/work/org run "rename the User.email field everywhere"
+aixecutor --workspace ~/work/org run "rename the User.email field everywhere"
 ```
 
 The baseline, per-subtask and senior diffs, and the **revert** (the review-checkpoint
