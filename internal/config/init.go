@@ -100,6 +100,10 @@ const scaffold = `# aixecutor local configuration (<repo>/.aixecutor/config.yaml
 
 # git:
 #   policy: read-only             # read-only | allow-worktree
+
+# update:
+#   check: true                   # notify when a newer release is available
+#   interval: 24h                 # minimum time between checks (>= 0; 0 = every run)
 `
 
 // LocalConfigRelPath is the conventional location of the local config relative

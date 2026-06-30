@@ -74,7 +74,7 @@ func TestShowNoFilesIsPlain(t *testing.T) {
 		t.Errorf("default-only render should have no provenance comments:\n%s", out)
 	}
 	// Sanity: it should still contain the schema's top-level keys.
-	for _, key := range []string{"version:", "paths:", "harnesses:", "roles:", "pipeline:", "git:", "backlog:", "workspace:"} {
+	for _, key := range []string{"version:", "paths:", "harnesses:", "roles:", "pipeline:", "git:", "backlog:", "workspace:", "update:"} {
 		if !strings.Contains(out, key) {
 			t.Errorf("render missing %q", key)
 		}

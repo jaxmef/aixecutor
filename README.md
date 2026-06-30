@@ -89,6 +89,14 @@ aixecutor version   # confirm the installed version
 > `go install …@latest` is cached. If it doesn't pick up a fresh tag, run
 > `GOPROXY=direct go install github.com/jaxmef/aixecutor@latest` (or `go clean -cache`).
 
+**Update check.** At startup `aixecutor` makes a single best-effort GitHub request for the
+latest release and, if a newer one exists, prints a one-line notice to stderr telling you to
+re-run `go install …@latest`. It is non-blocking and fail-silent — a slow or offline GitHub
+never delays or breaks a run — and rate-limited to one network call per `update.interval`
+(default 24h, cached in `~/.aixecutor/.update-check`). Opt out with any of:
+`AIXECUTOR_NO_UPDATE_CHECK=1`, `--no-update-check`, `update.check: false`, or `--quiet`
+(suppresses the notice). Dev/source builds and `--dry-run` never check.
+
 **Build from source:**
 
 ```bash
@@ -260,6 +268,20 @@ harnesses:
       maxAttempts: 2   # total attempts incl. the first; 1 = no retry
       backoff: 2s      # base delay between attempts
 ```
+
+### Update check
+
+The startup update check (see [Installation → Update check](#installation)) is configured
+under `update`:
+
+```yaml
+update:
+  check: true        # enable the startup update check (set false to opt out)
+  interval: 24h      # minimum time between network checks (>= 0; 0 = check every run)
+```
+
+It is enabled by default; `AIXECUTOR_NO_UPDATE_CHECK=1`, `--no-update-check`, `--quiet`,
+and dev/source or `--dry-run` runs all bypass it regardless of `update.check`.
 
 ### Observability
 

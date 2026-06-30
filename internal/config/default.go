@@ -130,5 +130,9 @@ func Default() Config {
 			MaxDepth: 4,
 			Ignore:   []string{"node_modules", "vendor", "dist", "build", ".next", "target"},
 		},
+		Update: Update{
+			Check:    true,
+			Interval: min(24 * time.Hour),
+		},
 	}
 }

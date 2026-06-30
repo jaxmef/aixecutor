@@ -32,6 +32,8 @@ type GlobalOptions struct {
 	// exclusive with Verbose in spirit; if both are set, Verbose wins (more detail
 	// is the safer surprise when a user explicitly asked to see more).
 	Quiet bool
+	// NoUpdateCheck disables the startup check for newer releases (AIX-0022).
+	NoUpdateCheck bool
 }
 
 // newRootCmd builds the root command, attaches the persistent global flags to
@@ -65,6 +67,8 @@ func newRootCmd(opts *GlobalOptions) *cobra.Command {
 		"enable verbose (debug) logging")
 	flags.BoolVarP(&opts.Quiet, "quiet", "q", false,
 		"suppress info logging (warnings and errors only)")
+	flags.BoolVar(&opts.NoUpdateCheck, "no-update-check", false,
+		"skip the startup check for a newer aixecutor release")
 
 	root.AddCommand(
 		newRunCmd(opts),
@@ -92,7 +96,10 @@ func newRootCmd(opts *GlobalOptions) *cobra.Command {
 func Execute() int {
 	opts := &GlobalOptions{}
 	root := newRootCmd(opts)
-	if err := root.Execute(); err != nil {
+	notice := installUpdateCheck(root, opts)
+	err := root.Execute()
+	printUpdateNotice(notice)
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "aixecutor: "+err.Error())
 		return exitCodeFor(err)
 	}

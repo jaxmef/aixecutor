@@ -24,6 +24,7 @@ type Config struct {
 	Git       Git                `yaml:"git"`
 	Backlog   Backlog            `yaml:"backlog"`
 	Workspace Workspace          `yaml:"workspace"`
+	Update    Update             `yaml:"update"`
 }
 
 // Paths controls where the tool writes its per-project artifacts. CONFIGURABLE.
@@ -167,6 +168,17 @@ type Workspace struct {
 	// workspace (where there is no .gitignore to lean on). `.git` and paths.runsDir
 	// are always ignored regardless. These names are matched at any depth.
 	Ignore []string `yaml:"ignore"`
+}
+
+// Update configures the startup update check (AIX-0022): a best-effort, non-blocking
+// poll of the latest GitHub release that prints a notice when a newer aixecutor is
+// available. It never delays or fails a run; a hanging GitHub is simply ignored.
+type Update struct {
+	// Check enables the startup update check. On by default; set false to opt out.
+	Check bool `yaml:"check"`
+	// Interval is the minimum time between network checks; within it the cached
+	// result is reused. Must be >= 0 (0 checks every run).
+	Interval Duration `yaml:"interval"`
 }
 
 // Duration is a time.Duration that marshals to and from the human-friendly

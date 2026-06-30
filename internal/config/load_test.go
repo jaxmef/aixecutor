@@ -108,6 +108,24 @@ func TestLoadDeepMergeProof(t *testing.T) {
 	}
 }
 
+// TestLoadUpdateDeepMerge proves a local layer setting only update.check flips
+// that one key while update.interval keeps its default (per-key map merge).
+func TestLoadUpdateDeepMerge(t *testing.T) {
+	repo := t.TempDir()
+	writeConfig(t, repo, "update:\n  check: false\n")
+
+	cfg, _, err := Load(LoadOptions{HomeDir: emptyHome(t), WorkingDir: repo})
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Update.Check {
+		t.Error("update.check = true, want false (from local)")
+	}
+	if cfg.Update.Interval.Std() != 24*time.Hour {
+		t.Errorf("update.interval = %v, want default 24h (sibling wiped!)", cfg.Update.Interval)
+	}
+}
+
 // TestLoadListReplaceWholesale proves overriding harnesses.claude.args replaces
 // the whole list rather than appending.
 func TestLoadListReplaceWholesale(t *testing.T) {
@@ -211,6 +229,7 @@ func TestLoadStrictRejectsUnknownKey(t *testing.T) {
 		{"unknown top-level key", "bogusTopKey: 1\n"},
 		{"unknown nested key", "pipeline:\n  execution:\n    bogus: 1\n"},
 		{"misspelled known key", "paths:\n  runDir: x\n"}, // runsDir typo
+		{"unknown key under update", "update:\n  intervl: 1h\n"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

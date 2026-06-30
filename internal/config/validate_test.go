@@ -103,6 +103,14 @@ func TestDefaultMatchesSchema(t *testing.T) {
 		t.Errorf("git.policy = %q, want read-only", d.Git.Policy)
 	}
 
+	// Update check (AIX-0022): enabled by default, 24h interval.
+	if !d.Update.Check {
+		t.Error("update.check = false, want true")
+	}
+	if d.Update.Interval.Std() != 24*time.Hour {
+		t.Errorf("update.interval = %v, want 24h", d.Update.Interval)
+	}
+
 	// Retry policy (AIX-0014): both default harnesses retry once (maxAttempts 2)
 	// with a 2s base backoff. Keep this in lockstep with CLAUDE.md §5 and README.
 	for _, name := range []string{"claude", "pi"} {
@@ -205,6 +213,16 @@ func TestValidate(t *testing.T) {
 				h.Retry.MaxAttempts = 1
 				c.Harnesses["claude"] = h
 			},
+			wantErr: "",
+		},
+		{
+			name:    "negative update interval",
+			mutate:  func(c *Config) { c.Update.Interval = Duration(-1) },
+			wantErr: "update.interval",
+		},
+		{
+			name:    "zero update interval is valid",
+			mutate:  func(c *Config) { c.Update.Interval = 0 },
 			wantErr: "",
 		},
 	}

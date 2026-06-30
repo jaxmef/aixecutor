@@ -84,3 +84,6 @@ workspace:
     - build
     - .next
     - target
+update:
+  check: true
+  interval: 24h0m0s

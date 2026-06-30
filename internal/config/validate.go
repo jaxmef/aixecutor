@@ -114,6 +114,13 @@ func Validate(cfg Config) error {
 			cfg.Workspace.MaxDepth)
 	}
 
+	// update.interval (AIX-0022)
+	if cfg.Update.Interval < 0 {
+		return fmt.Errorf(
+			"update.interval: %s is invalid; must be >= 0 (0 = check every run)",
+			cfg.Update.Interval)
+	}
+
 	// every role's harness must be defined in harnesses
 	for _, r := range rolesByName(cfg.Roles) {
 		if r.role.Harness == "" {
