@@ -72,6 +72,20 @@ func TestLayoutSubtaskPathsSanitized(t *testing.T) {
 	if !strings.HasSuffix(rev, filepath.Join("subtasks", "ok", "reviews")) {
 		t.Errorf("SubtaskReviewsDir = %q, want .../subtasks/ok/reviews", rev)
 	}
+	exec := l.SubtaskExecutionsDir("ok")
+	if !strings.HasSuffix(exec, filepath.Join("subtasks", "ok", "execution")) {
+		t.Errorf("SubtaskExecutionsDir = %q, want .../subtasks/ok/execution", exec)
+	}
+	// Execution round files reuse the reviews' round-N.md pattern, so
+	// execution/round-N pairs with reviews/round-N.
+	execRound := l.SubtaskExecutionRoundFile("ok", 2)
+	if !strings.HasSuffix(execRound, filepath.Join("subtasks", "ok", "execution", "round-2.md")) {
+		t.Errorf("SubtaskExecutionRoundFile = %q, want .../subtasks/ok/execution/round-2.md", execRound)
+	}
+	// A hostile id must not escape the executions dir either (inherits safeSegment).
+	if escaped := l.SubtaskExecutionsDir("../../etc"); !strings.HasPrefix(escaped, l.SubtasksDir()) {
+		t.Errorf("SubtaskExecutionsDir(%q) = %q escaped %q", "../../etc", escaped, l.SubtasksDir())
+	}
 }
 
 func TestEnsureDirsIdempotent(t *testing.T) {

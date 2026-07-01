@@ -27,6 +27,10 @@ const (
 	SubtasksDirName = "subtasks"
 	// SubtaskReviewsDirName is the per-subtask reviews subdir (round-N.md).
 	SubtaskReviewsDirName = "reviews"
+	// SubtaskExecutionsDirName is the per-subtask executions subdir (round-N.md),
+	// the human-readable counterpart to reviews: execution/round-N pairs with
+	// reviews/round-N.
+	SubtaskExecutionsDirName = "execution"
 	// SubtaskDiffFileName is the per-subtask diff persisted under subtasks/<id>/.
 	SubtaskDiffFileName = "diff.patch"
 	// reviewRoundFilePattern names a single review round file under a reviews dir.
@@ -136,6 +140,18 @@ func (l Layout) SubtaskReviewsDir(subtaskID string) string {
 // (AIX-0011) writes one per round so resume can re-enter at the right round.
 func (l Layout) SubtaskReviewRoundFile(subtaskID string, round int) string {
 	return filepath.Join(l.SubtaskReviewsDir(subtaskID), fmt.Sprintf(reviewRoundFilePattern, round))
+}
+
+// SubtaskExecutionsDir returns the executions subdir for a subtask.
+func (l Layout) SubtaskExecutionsDir(subtaskID string) string {
+	return filepath.Join(l.SubtaskDir(subtaskID), SubtaskExecutionsDirName)
+}
+
+// SubtaskExecutionRoundFile returns the path of a single execution round file
+// (round-N.md, 1-based) under a subtask's executions dir. It reuses the reviews'
+// round pattern so execution/round-N pairs with reviews/round-N.
+func (l Layout) SubtaskExecutionRoundFile(subtaskID string, round int) string {
+	return filepath.Join(l.SubtaskExecutionsDir(subtaskID), fmt.Sprintf(reviewRoundFilePattern, round))
 }
 
 // SeniorReviewDir returns the senior-review artifact directory.

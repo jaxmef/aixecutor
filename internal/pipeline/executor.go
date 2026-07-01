@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/jaxmef/aixecutor/internal/git"
 	"github.com/jaxmef/aixecutor/internal/harness"
@@ -159,7 +160,8 @@ func (s *Scheduler) runExecutor(ctx context.Context, id string, priorFindings []
 	// Invoke the executor harness in the working directory, injecting any prior
 	// reviewer findings so a remediation pass renders the "address these findings"
 	// prompt (empty on the initial pass).
-	if err := s.invokeExecutor(ctx, st, workDir, priorFindings); err != nil {
+	res, err := s.invokeExecutor(ctx, st, workDir, priorFindings)
+	if err != nil {
 		return "", fmt.Errorf("executor failed for subtask %q: %w", id, err)
 	}
 
@@ -189,6 +191,13 @@ func (s *Scheduler) runExecutor(ctx context.Context, id string, priorFindings []
 		return "", fmt.Errorf("diffing subtask %q: %w", id, err)
 	}
 	if err := s.persistDiff(id, diff.Patch); err != nil {
+		return "", err
+	}
+
+	// Round numbering mirrors the review loop: the snapshot taken at the top of
+	// runExecutor holds Loops BEFORE this pass, so round == st.Loops+1 makes
+	// execution/round-N pair with reviews/round-N.
+	if err := s.persistExecution(id, st.Loops+1, res, diff.Patch); err != nil {
 		return "", err
 	}
 
@@ -273,7 +282,7 @@ func (g rerootedGateway) SnapshotPaths(dstDir string, paths []string, _ func(byt
 // remediation pass (driven by the subtask review loop, AIX-0011), which switches
 // the executor prompt into its "address these findings" mode. A harness error is
 // returned to the caller, which records the subtask as failed.
-func (s *Scheduler) invokeExecutor(ctx context.Context, st run.Subtask, workDir string, priorFindings []Finding) error {
+func (s *Scheduler) invokeExecutor(ctx context.Context, st run.Subtask, workDir string, priorFindings []Finding) (harness.Result, error) {
 	promptText, err := s.renderer.Render(s.role.PromptTemplate, prompt.ExecutorContext{
 		Task:           s.run.Task,
 		Subtask:        toPromptSubtask(st),
@@ -282,10 +291,10 @@ func (s *Scheduler) invokeExecutor(ctx context.Context, st run.Subtask, workDir 
 		Baseline:       prompt.BaselineInfo{Description: baselineDescription},
 	})
 	if err != nil {
-		return fmt.Errorf("rendering executor prompt: %w", err)
+		return harness.Result{}, fmt.Errorf("rendering executor prompt: %w", err)
 	}
 
-	_, err = s.executor.Run(ctx, harness.Request{
+	return s.executor.Run(ctx, harness.Request{
 		Prompt:         promptText,
 		Role:           "executor",
 		Model:          s.role.Model,
@@ -293,10 +302,6 @@ func (s *Scheduler) invokeExecutor(ctx context.Context, st run.Subtask, workDir 
 		PermissionMode: s.role.PermissionMode,
 		Timeout:        s.role.Timeout.Std(),
 	})
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 // provisionWorktree obtains a worktree manager (gated on git.policy: allow-worktree)
@@ -341,6 +346,63 @@ func (s *Scheduler) persistDiff(id, patch string) error {
 		return fmt.Errorf("writing diff.patch for subtask %q: %w", id, err)
 	}
 	return nil
+}
+
+// persistExecution writes a human-readable execution summary for one executor pass
+// to subtasks/<id>/execution/round-N.md — the counterpart to the review loop's
+// round files (execution/round-N pairs with reviews/round-N). It records the
+// executor's summary text plus the role's harness/model/timeout, the pass's
+// duration/exit code, a link to that round's diff.patch, and the files it touched.
+// diff.patch stays the machine artifact; this is the readable one. The write
+// overwrites the round file (like diff.patch) so resume stays idempotent.
+func (s *Scheduler) persistExecution(id string, round int, res harness.Result, patch string) error {
+	layout := s.layout()
+	dir := layout.SubtaskExecutionsDir(id)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("creating execution dir for subtask %q: %w", id, err)
+	}
+	var title string
+	if st, ok := s.subtaskSnapshot(id); ok {
+		title = st.Title
+	}
+	md := renderExecutionRound(
+		id, title, round,
+		s.role.Harness, s.role.Model, s.role.PermissionMode, s.role.Timeout.Std(),
+		res.Duration, res.ExitCode,
+		changedFilesFromPatch(patch), res.Text,
+	)
+	if err := os.WriteFile(layout.SubtaskExecutionRoundFile(id, round), []byte(md), 0o644); err != nil {
+		return fmt.Errorf("writing execution round %d for subtask %q: %w", round, id, err)
+	}
+	return nil
+}
+
+// changedFilesFromPatch extracts the repo-relative paths touched by a diff by
+// scanning its `diff --git a/<path> b/<path>` headers and taking the `b/` path
+// (already repo-relative). Order is preserved and duplicates dropped.
+func changedFilesFromPatch(patch string) []string {
+	const header = "diff --git "
+	seen := map[string]struct{}{}
+	var out []string
+	for _, line := range strings.Split(patch, "\n") {
+		if !strings.HasPrefix(line, header) {
+			continue
+		}
+		fields := strings.Fields(line[len(header):])
+		if len(fields) < 2 {
+			continue
+		}
+		path := strings.TrimPrefix(fields[len(fields)-1], "b/")
+		if path == "" {
+			continue
+		}
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
+		out = append(out, path)
+	}
+	return out
 }
 
 // failSubtask records a subtask's failure: it marks the subtask SubtaskFailed and

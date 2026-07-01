@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jaxmef/aixecutor/internal/log"
 )
@@ -120,5 +121,49 @@ func renderReviewRound(title, raw string, v Verdict, parseErr error) string {
 		b.WriteString("\n")
 	}
 	b.WriteString("```\n")
+	return b.String()
+}
+
+// renderExecutionRound formats one executor pass as Markdown, the human-readable
+// sibling of renderReviewRound (execution/round-N pairs with reviews/round-N): a
+// heading, the run's metadata (harness/model/permissionMode/timeout, duration,
+// exit code), a relative link to that round's diff.patch, the files it touched
+// (with a fallback when none), and the executor's own summary text. The summary is
+// emitted UNFENCED — it is the agent's own Markdown, unlike the raw reviewer output
+// renderReviewRound fences. It is pure so it is unit-testable in isolation.
+func renderExecutionRound(
+	subtaskID, subtaskTitle string,
+	round int,
+	harnessName, model, permissionMode string,
+	timeout, duration time.Duration,
+	exitCode int,
+	files []string,
+	summary string,
+) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "# Subtask %s — execution round %d\n\n", subtaskID, round)
+	if subtaskTitle != "" {
+		fmt.Fprintf(&b, "**Title:** %s\n\n", subtaskTitle)
+	}
+	fmt.Fprintf(&b, "**Harness:** %s (model `%s`, permission `%s`)\n\n", harnessName, model, permissionMode)
+	fmt.Fprintf(&b, "**Timeout:** %s\n\n", timeout)
+	fmt.Fprintf(&b, "**Duration:** %s\n\n", duration)
+	fmt.Fprintf(&b, "**Exit code:** %d\n\n", exitCode)
+	b.WriteString("**Diff:** [diff.patch](../diff.patch)\n\n")
+
+	b.WriteString("## Files changed\n\n")
+	if len(files) == 0 {
+		b.WriteString("_No files changed._\n")
+	} else {
+		for _, f := range files {
+			fmt.Fprintf(&b, "- `%s`\n", f)
+		}
+	}
+
+	b.WriteString("\n## Summary\n\n")
+	b.WriteString(summary)
+	if !strings.HasSuffix(summary, "\n") {
+		b.WriteString("\n")
+	}
 	return b.String()
 }
