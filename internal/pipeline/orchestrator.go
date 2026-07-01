@@ -358,7 +358,7 @@ func (o *Orchestrator) driveFrom(ctx context.Context, r *run.Run, from run.Statu
 		// the docs, then `resume` proceeds). Mirrors `plan` for the initial run.
 		if !resuming && !o.cfg.Pipeline.AutostartExecution {
 			o.progress.Logf("Planning complete; autostartExecution is off — stopping after planning.")
-			o.progress.Logf("Resume execution with: aixecutor resume %s", r.ID)
+			o.progress.ResumeHint(r.ID)
 			return nil
 		}
 		// Transition planned → executing and persist BEFORE the scheduler runs, so

@@ -35,6 +35,32 @@ func TestPlanTaskInputArgCount(t *testing.T) {
 	})
 }
 
+// TestPlanPrintsResumeHint proves the standalone `plan` command ends a successful
+// run by telling the user how to execute the plan, citing the same run id it used
+// elsewhere in its output. Driven hermetically under --dry-run.
+func TestPlanPrintsResumeHint(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	out, err := runCLI(t, missingConfigArgs(t, "--dry-run", "plan", "add a flag")...)
+	if err != nil {
+		t.Fatalf("dry-run plan should succeed: %v\n%s", err, out)
+	}
+
+	const prefix = "Resume execution with: aixecutor resume "
+	idx := strings.Index(out, prefix)
+	if idx < 0 {
+		t.Fatalf("output missing resume hint %q:\n%s", prefix, out)
+	}
+	rest := out[idx+len(prefix):]
+	id := strings.TrimSpace(strings.SplitN(rest, "\n", 2)[0])
+	if id == "" {
+		t.Fatalf("resume hint carried no run id:\n%s", out)
+	}
+	if strings.Count(out, id) < 2 {
+		t.Errorf("resume hint id %q should also appear elsewhere in the output:\n%s", id, out)
+	}
+}
+
 // TestPresetFactoriesWiresClaudeAndPi proves the registry is wired with both the
 // claude and pi presets (the AIX-0004/0005 loose end this ticket closes): building
 // the registry from the default config yields preset-backed harnesses for both

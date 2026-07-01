@@ -114,7 +114,11 @@ func runPlan(c *cobra.Command, opts *GlobalOptions, task string) error {
 		pipeline.WithProgress(progress),
 	)
 
-	return planner.Plan(c.Context(), r)
+	if err := planner.Plan(c.Context(), r); err != nil {
+		return err
+	}
+	progress.ResumeHint(r.ID)
+	return nil
 }
 
 // logsDirFor returns the run's logs directory through the store layout, so the

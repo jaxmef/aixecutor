@@ -158,6 +158,11 @@ func (p *Progress) PlanningDone(docsDir string, subtasks int) {
 	p.line("Planning complete: %d subtask(s). Docs: %s", subtasks, docsDir)
 }
 
+// ResumeHint tells the user how to continue a run that stopped after planning.
+func (p *Progress) ResumeHint(id string) {
+	p.line("Resume execution with: aixecutor resume %s", id)
+}
+
 // SubtaskStarted reports an executor beginning work on a subtask.
 func (p *Progress) SubtaskStarted(id, title string) {
 	p.line("  [%s] implementing: %s", Colorize(p.colorOn(), AnsiCyan, id), title)

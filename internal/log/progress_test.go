@@ -58,6 +58,17 @@ func TestProgressSemanticEvents(t *testing.T) {
 	}
 }
 
+// TestProgressResumeHint pins ResumeHint's exact single-line output — the sole
+// source of the "how to continue after planning" wording.
+func TestProgressResumeHint(t *testing.T) {
+	var buf bytes.Buffer
+	p := NewProgress(&buf)
+	p.ResumeHint("run-42")
+	if got, want := buf.String(), "Resume execution with: aixecutor resume run-42\n"; got != want {
+		t.Errorf("ResumeHint output = %q, want %q", got, want)
+	}
+}
+
 // TestProgressColorEnabled proves that, with colour enabled via WithColor, a known
 // header carries the expected SGR code while its textual content is preserved, and
 // that the default (colour off) stays plain.
