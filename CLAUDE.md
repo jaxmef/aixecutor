@@ -56,7 +56,7 @@ aixecutor/
 ├── Makefile                 # build / test / lint / fmt
 ├── prompts/                 # default prompt templates (*.tmpl), embedded via go:embed
 ├── internal/
-│   ├── cli/                 # cobra commands: run, plan, resume, review, amend, status, list, backlog, config, version
+│   ├── cli/                 # cobra commands: run, plan, resume, review, stop, amend, status, list, backlog, config, version
 │   ├── config/             # schema structs, hardcoded defaults, layered load + deep-merge, validate
 │   ├── harness/            # Harness interface, generic CLI adapter, registry, mock harness
 │   ├── git/                # read-only gateway, baseline snapshots, diff engine, opt-in worktree
@@ -128,7 +128,8 @@ type Subtask struct {
 ### 3.3 Pipeline state machine
 
 `planning → planned → executing → seniorReview → completed` (with `failed`/`aborted` as
-terminal off-ramps, and `paused` as a resumable off-ramp from `executing`). The
+terminal off-ramps, and `paused` as a resumable off-ramp from `executing`). Both `paused`
+and `aborted` are **resumable**: `resume` continues either. The
 orchestrator persists `run.yaml` on every transition.
 
 - **Planning** — invoke the `planner` role once. It writes `docs/plan.md`,
@@ -154,6 +155,16 @@ orchestrator persists `run.yaml` on every transition.
   baseline (`git.RestoreTree` — raw file I/O, **no mutating git**, excludes `runsDir`/docs so
   amended docs and pre-existing uncommitted changes survive), re-reads `docs/subtasks.yaml`,
   resets subtask state, and restarts execution from the amended plan.
+- **Immediate stop** — `aixecutor stop <id>` writes a `stop` request to the same
+  `.control/` channel; the scheduler's owning goroutine acts at the **soonest safe point**
+  rather than the next subtask boundary: it **cancels the run context**, killing in-flight
+  executor/reviewer subprocesses via ctx cancellation, and persists `aborted`. The
+  interrupted subtask is left in a **re-runnable** state (never `done`/`failed`) so `resume`
+  re-runs just that one subtask and continues; already-`done` subtasks are never redone. No
+  mutating git and no auto-revert — a partial edit may remain until the subtask re-runs
+  (reverting the tree stays `amend --confirm`'s job). Contrast with the review checkpoint:
+  **pause** = graceful, subtask-boundary, no lost work; **stop** = immediate, cancels
+  in-flight work, may re-run one subtask on resume.
 - **Done** — write a summary. **Never** commit. The working tree is left for the user.
 
 ---

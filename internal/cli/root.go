@@ -79,6 +79,7 @@ func newRootCmd(opts *GlobalOptions) *cobra.Command {
 		newPlanCmd(opts),
 		newResumeCmd(opts),
 		newReviewCmd(opts),
+		newStopCmd(opts),
 		newAmendCmd(opts),
 		newStatusCmd(opts),
 		newListCmd(opts),

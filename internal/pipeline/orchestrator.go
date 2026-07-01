@@ -239,6 +239,7 @@ func (o *Orchestrator) Amend(ctx context.Context, id string) (*run.Run, error) {
 		return r, err
 	}
 	_ = o.store.ClearPause(r.ID)
+	_ = o.store.ClearStop(r.ID)
 
 	o.progress.Logf("Restarting execution from the amended plan (%d subtask(s)).", len(subtasks))
 	return r, o.driveFrom(ctx, r, run.StatusExecuting, true)
@@ -325,11 +326,14 @@ func (o *Orchestrator) drive(ctx context.Context, r *run.Run, resuming bool) err
 		// the scheduler re-derives the ready set from persisted statuses, so done
 		// subtasks are not re-run and the rest continue.
 		_ = o.store.ClearPause(r.ID)
+		_ = o.store.ClearStop(r.ID)
 		return o.driveFrom(ctx, r, run.StatusExecuting, resuming)
 	case run.StatusAborted:
 		// Resuming an aborted run: re-derive the phase to re-enter from the
 		// persisted sub-state (subtasks / senior-review progress), since the
-		// run-level Status no longer names a phase.
+		// run-level Status no longer names a phase. Clear any lingering stop request
+		// so the resumed execution does not immediately re-abort.
+		_ = o.store.ClearStop(r.ID)
 		return o.driveFrom(ctx, r, o.phaseAfterAbort(r), resuming)
 	}
 	return o.driveFrom(ctx, r, r.Status, resuming)
@@ -454,7 +458,11 @@ func (o *Orchestrator) runExecution(ctx context.Context, r *run.Run) error {
 		WithSchedulerDryRun(o.dryRun),
 		// Honor a pause-to-review request (AIX-0016) at each subtask boundary by
 		// polling the run's control channel. Safe when no request exists (false).
-		WithPauseCheck(func() bool { return o.store.PauseRequested(r.ID) }))
+		WithPauseCheck(func() bool { return o.store.PauseRequested(r.ID) }),
+		// Honor an immediate-stop request: the watcher polls the control channel and
+		// cancels in-flight work at once, not only at a subtask boundary. Safe when
+		// no request exists (false).
+		WithStopCheck(func() bool { return o.store.StopRequested(r.ID) }))
 	if err != nil {
 		return err
 	}

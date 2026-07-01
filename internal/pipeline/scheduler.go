@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/jaxmef/aixecutor/internal/config"
 	"github.com/jaxmef/aixecutor/internal/git"
@@ -31,6 +32,11 @@ const (
 	isolationWorktree       = "worktree"
 	isolationNone           = "none"
 )
+
+// defaultStopPollInterval is how often the stop watcher polls stopCheck. It is
+// small so an immediate-stop request cancels in-flight work promptly; tests tune
+// it down further via WithStopPollInterval for determinism.
+const defaultStopPollInterval = 250 * time.Millisecond
 
 // gitGateway is the narrow, read-only-plus-gated-worktree slice of the git gateway
 // the scheduler needs. Declaring it here (rather than depending on *git.Gateway
@@ -237,6 +243,18 @@ type Scheduler struct {
 	// run's control channel (store.PauseRequested); tests inject a closure.
 	pauseCheck func() bool
 
+	// stopCheck, when set, is polled by a watcher goroutine (watchStop) on a ticker
+	// — NOT only at subtask boundaries. Returning true cancels the run context,
+	// unwinding any in-flight executor/reviewer mid-subtask so an immediate stop takes
+	// effect promptly; the interrupted subtask is left non-terminal (re-runnable).
+	// Default nil = never stop. Production wires it to the run's control channel
+	// (store.StopRequested); tests inject a closure.
+	stopCheck func() bool
+
+	// stopPoll is the watcher's poll interval; zero uses defaultStopPollInterval.
+	// Tests set a small value via WithStopPollInterval for a prompt, deterministic stop.
+	stopPoll time.Duration
+
 	// dryRun marks that the executor/reviewer harnesses are the dry-run wrapper,
 	// which returns a role-agnostic placeholder (not a parseable reviewer verdict).
 	// The subtask review loop reads this to short-circuit to "approved" instead of
@@ -295,6 +313,29 @@ func WithPauseCheck(check func() bool) SchedulerOption {
 	return func(s *Scheduler) {
 		if check != nil {
 			s.pauseCheck = check
+		}
+	}
+}
+
+// WithStopCheck sets the predicate the stop watcher polls to honor an immediate-stop
+// request: when it returns true the watcher cancels the run context, unwinding any
+// in-flight executor/reviewer at once rather than waiting for a subtask boundary. A
+// nil check (the default) never stops, so existing callers are unaffected.
+func WithStopCheck(check func() bool) SchedulerOption {
+	return func(s *Scheduler) {
+		if check != nil {
+			s.stopCheck = check
+		}
+	}
+}
+
+// WithStopPollInterval overrides the stop watcher's poll interval (default
+// defaultStopPollInterval). Intended for tests that want a prompt, deterministic
+// stop; a non-positive value is ignored.
+func WithStopPollInterval(d time.Duration) SchedulerOption {
+	return func(s *Scheduler) {
+		if d > 0 {
+			s.stopPoll = d
 		}
 	}
 }
@@ -385,13 +426,23 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	go s.actor.loop()
 	defer s.actor.stop()
 
+	// runCtx lets an immediate-stop request cancel in-flight executor/reviewer work
+	// mid-subtask (not only at the pause boundary). The watcher owns the stop poll and
+	// is the sole caller of cancel(); every boundary check and runBatch below uses
+	// runCtx so the cancel propagates promptly. defer cancel() also stops the watcher.
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	if s.stopCheck != nil {
+		go s.watchStop(runCtx, cancel)
+	}
+
 	if err := s.beginExecuting(); err != nil {
 		return err
 	}
 
 	for {
-		if ctx.Err() != nil {
-			return fmt.Errorf("pipeline: execution canceled: %w", ctx.Err())
+		if runCtx.Err() != nil {
+			return fmt.Errorf("pipeline: execution canceled: %w", runCtx.Err())
 		}
 
 		done, total := s.terminalCounts()
@@ -418,7 +469,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 			return s.deadlockError()
 		}
 
-		if err := s.runBatch(ctx, batch); err != nil {
+		if err := s.runBatch(runCtx, batch); err != nil {
 			// A worker hit an unrecoverable (non per-subtask) error such as context
 			// cancellation or a persistence failure. Per-subtask executor failures
 			// are recorded as SubtaskFailed and do NOT abort the loop here.
@@ -438,6 +489,34 @@ func (s *Scheduler) pauseAtBoundary() error {
 	_ = s.store.ClearPause(s.run.ID)
 	s.progress.Logf("Paused for review at a subtask boundary (run %s).", s.run.ID)
 	return ErrPaused
+}
+
+// watchStop polls stopCheck on a ticker until it fires or runCtx ends. On a stop
+// request it acknowledges the marker (ClearStop — plain file I/O, so a later resume
+// does not immediately re-stop), logs, and cancels runCtx: the one-way signal that
+// unwinds every in-flight executor/reviewer and the Run loop. It owns only its poll;
+// it never touches run state (the actor owns that), so no lock is needed (CLAUDE.md
+// §7). It exits on runCtx.Done() (fired by Run's deferred cancel on any exit).
+func (s *Scheduler) watchStop(runCtx context.Context, cancel context.CancelFunc) {
+	poll := s.stopPoll
+	if poll <= 0 {
+		poll = defaultStopPollInterval
+	}
+	ticker := time.NewTicker(poll)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-runCtx.Done():
+			return
+		case <-ticker.C:
+			if s.stopCheck() {
+				_ = s.store.ClearStop(s.run.ID)
+				s.progress.Logf("Stop requested; canceling in-flight work (run %s).", s.run.ID)
+				cancel()
+				return
+			}
+		}
+	}
 }
 
 // beginExecuting marks the run executing (persisted) and resets any interrupted

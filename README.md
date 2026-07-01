@@ -132,7 +132,8 @@ aixecutor status <run-id>
 aixecutor resume <run-id>
 
 # review checkpoint: pause a running run, then continue or amend the plan
-aixecutor review <run-id>          # pause at the next subtask boundary
+aixecutor review <run-id>          # pause GRACEFULLY at the next subtask boundary
+aixecutor stop   <run-id>          # stop IMMEDIATELY, cancelling in-flight work
 aixecutor amend  <run-id> --confirm # revert execution & restart from the edited docs
 
 # see the effective merged configuration and where it came from
@@ -157,6 +158,26 @@ subtask boundary** (run state stays consistent — never mid-subtask). From the 
 
 The revert uses **no git write commands** — it restores from the run-start baseline snapshot
 via plain file I/O. Nothing is ever committed.
+
+### Pause vs. stop
+
+`review` and `stop` are two ways to halt a run; pick by how fast you need it to stop:
+
+- **`aixecutor review <run-id>` — pause (graceful).** Waits for the current subtask to
+  finish, then halts at the next **subtask boundary**. No in-flight work is thrown away; the
+  run persists as `paused`. On a long subtask (or a slow local model) this can take a while.
+- **`aixecutor stop <run-id>` — stop (immediate).** Halts at the soonest **safe point**:
+  it cancels in-flight harness invocations (the executor/reviewer subprocess is killed via
+  context cancellation) instead of waiting for the subtask to complete. The run persists as
+  `aborted`.
+
+Both write to the run's `.control/` channel and leave a coherent, **resumable** state — no
+mutating git, nothing committed. The difference is scope and latency: `review` never
+interrupts a subtask; `stop` may interrupt one. A subtask cut off by `stop` is persisted as
+re-runnable (never `done`), so `aixecutor resume <run-id>` re-runs **just that subtask** from
+its pre-subtask state and continues — already-`done` subtasks are never redone. `stop` does
+**not** revert the working tree (that is `amend --confirm`'s job); a partial edit may remain
+until the subtask re-runs.
 
 ### Driving a backlog
 

@@ -77,6 +77,12 @@ func (s *Scheduler) executeSubtask(ctx context.Context, id string) error {
 		return s.commitSubtask(id, mutate)
 	}
 	if err := s.reviewHook(ctx, snap, commit); err != nil {
+		// A cancellation during review is fatal, not a subtask failure: propagate it so
+		// the subtask stays reviewing/implementing (re-runnable), never marked failed —
+		// matching the executor-pass guard above.
+		if ctx.Err() != nil {
+			return fmt.Errorf("pipeline: subtask %q canceled: %w", id, ctx.Err())
+		}
 		if ferr := s.failSubtask(id, fmt.Errorf("review step: %w", err)); ferr != nil {
 			return ferr
 		}

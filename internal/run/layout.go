@@ -54,6 +54,9 @@ const (
 	// PauseRequestFileName is the marker whose presence requests a pause-to-review;
 	// the running scheduler honors it at the next subtask boundary and clears it.
 	PauseRequestFileName = "pause-requested"
+	// StopRequestFileName is the marker whose presence requests an immediate stop;
+	// a watcher goroutine cancels the run context at the next safe point and clears it.
+	StopRequestFileName = "stop-requested"
 
 	// LatestPointerName is the file under the runs dir naming the most recent
 	// run. It is a plain text file (not a symlink) for cross-platform
@@ -169,6 +172,11 @@ func (l Layout) ControlDir() string { return filepath.Join(l.Dir(), ControlDirNa
 // PauseRequestFile returns the pause-request marker path.
 func (l Layout) PauseRequestFile() string {
 	return filepath.Join(l.ControlDir(), PauseRequestFileName)
+}
+
+// StopRequestFile returns the stop-request marker path.
+func (l Layout) StopRequestFile() string {
+	return filepath.Join(l.ControlDir(), StopRequestFileName)
 }
 
 // EnsureDirs creates the run's directory tree, idempotently. It is safe to call
