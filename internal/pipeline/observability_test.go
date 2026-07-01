@@ -15,7 +15,7 @@ import (
 // TestOrchestratorStructuredLoggingPersistsInvocations proves the AIX-0014 wiring
 // end-to-end: with a Logger attached, a full run writes structured per-invocation
 // records to <run>/logs/aixecutor.log (tagged with each role) AND persists each
-// invocation's raw output to <run>/logs/<role>-NNN.out that the log points at.
+// invocation's raw output to <run>/logs/NNN-<role>.out that the log points at.
 func TestOrchestratorStructuredLoggingPersistsInvocations(t *testing.T) {
 	cfg := orchCfg() // serial execution, one distinct harness per role
 	hs := fullPipelineHarnesses()
@@ -58,7 +58,7 @@ func TestOrchestratorStructuredLoggingPersistsInvocations(t *testing.T) {
 	}
 	logTxt := string(data)
 	for _, want := range []string{
-		"msg=\"harness invocation\"",
+		"msg=\"harness invocation completed\"",
 		"role=planner",
 		"role=executor",
 		"role=subtask-reviewer",
@@ -76,7 +76,7 @@ func TestOrchestratorStructuredLoggingPersistsInvocations(t *testing.T) {
 	// invocations with empty Raw legitimately have no file (and the log omits the
 	// pointer for them).
 	for _, role := range []string{"planner", "senior-reviewer"} {
-		matches, _ := filepath.Glob(filepath.Join(logsDir, role+"-*.out"))
+		matches, _ := filepath.Glob(filepath.Join(logsDir, "[0-9][0-9][0-9]-"+role+".out"))
 		if len(matches) == 0 {
 			t.Errorf("no persisted raw-output file for role %q under %s", role, logsDir)
 			continue

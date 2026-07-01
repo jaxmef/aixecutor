@@ -13,7 +13,7 @@ import (
 // invocationHarness wraps a harness.Harness so that EVERY invocation is logged
 // with a structured record — role, harness, model, workdir, duration, exit code —
 // and a pointer to the full stdout/stderr persisted under the run's logs/ dir
-// (<run>/logs/<role>-<seq>.out). This is the AIX-0014 "every harness invocation is
+// (<run>/logs/NNN-<role>.out). This is the AIX-0014 "every harness invocation is
 // logged + a pointer to full output" requirement, kept in one decorator so phase
 // code stays clean.
 //
@@ -49,14 +49,26 @@ func (h *invocationHarness) Name() string { return h.inner.Name() }
 // result/error is returned unchanged so behavior is identical with or without the
 // wrapper.
 func (h *invocationHarness) Run(ctx context.Context, req harness.Request) (harness.Result, error) {
+	// One seq per logical invocation: WrapHarness is the outermost decorator (it
+	// wraps retry(cli)), so retries happen INSIDE h.inner.Run and never allocate a
+	// new seq — the started/completed records and the .out file all share this seq.
+	seq := h.logger.nextSeq()
+	h.logger.Info("harness invocation started",
+		"role", roleAttr(req.Role),
+		"harness", h.inner.Name(),
+		"model", req.Model,
+		"seq", seq,
+	)
+
 	res, err := h.inner.Run(ctx, req)
 
-	outPath := h.persistRaw(req.Role, res.Raw)
+	outPath := h.persistRaw(seq, req.Role, res.Raw)
 
 	attrs := []any{
 		"role", roleAttr(req.Role),
 		"harness", h.inner.Name(),
 		"model", req.Model,
+		"seq", seq,
 		"workdir", req.WorkDir,
 		"duration", res.Duration.Round(time.Millisecond).String(),
 		"exitCode", res.ExitCode,
@@ -76,21 +88,21 @@ func (h *invocationHarness) Run(ctx context.Context, req harness.Request) (harne
 		h.logger.Warn("harness invocation failed", attrs...)
 		return res, err
 	}
-	h.logger.Info("harness invocation", attrs...)
+	h.logger.Info("harness invocation completed", attrs...)
 	return res, nil
 }
 
-// persistRaw writes the invocation's raw stdout to <logsDir>/<role>-<seq>.out and
-// returns the path, so the structured log line can point at the full output. It is
+// persistRaw writes the invocation's raw stdout to <logsDir>/NNN-<role>.out and
+// returns the path, so the structured log line can point at the full output. The
+// zero-padded seq PREFIX makes a plain `ls` sort by execution order. It is
 // best-effort: with no logs dir attached, or no raw output, or a write failure, it
 // returns "" and the log simply omits the pointer (logging must never fail a run).
-func (h *invocationHarness) persistRaw(role string, raw []byte) string {
+func (h *invocationHarness) persistRaw(seq int, role string, raw []byte) string {
 	logsDir := h.logger.LogsDir()
 	if logsDir == "" || len(raw) == 0 {
 		return ""
 	}
-	seq := h.logger.nextSeq()
-	name := fmt.Sprintf("%s-%03d.out", safeRole(role), seq)
+	name := fmt.Sprintf("%03d-%s.out", seq, safeRole(role))
 	path := filepath.Join(logsDir, name)
 	if err := os.WriteFile(path, raw, 0o644); err != nil {
 		// Surface the failure in the log but do not fail the invocation.

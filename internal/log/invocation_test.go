@@ -53,7 +53,16 @@ func TestInvocationLogsStructuredLineAndPersistsRaw(t *testing.T) {
 		t.Errorf("wrapper changed the result Text: %q", res.Text)
 	}
 
-	logTxt := console.String()
+	// The started/completed records are Info level: at Normal verbosity the console
+	// is Warn-gated, so assert against the durable run-log file, which keeps Info.
+	if err := logger.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	fileData, err := os.ReadFile(filepath.Join(logsDir, "aixecutor.log"))
+	if err != nil {
+		t.Fatalf("reading run log file: %v", err)
+	}
+	logTxt := string(fileData)
 	for _, want := range []string{
 		"role=planner", "harness=claude", "model=opus", "workdir=/repo",
 		"duration=1.5s", "exitCode=0", "output=",
@@ -63,10 +72,27 @@ func TestInvocationLogsStructuredLineAndPersistsRaw(t *testing.T) {
 		}
 	}
 
+	// The "started" record must precede the "completed" record and both carry the
+	// same seq (one seq per logical invocation).
+	startIdx := strings.Index(logTxt, "harness invocation started")
+	doneIdx := strings.Index(logTxt, "harness invocation completed")
+	if startIdx < 0 || doneIdx < 0 {
+		t.Fatalf("expected both started and completed records:\n%s", logTxt)
+	}
+	if startIdx > doneIdx {
+		t.Errorf("started record must precede completed record:\n%s", logTxt)
+	}
+	if !strings.Contains(logTxt, "seq=1") {
+		t.Errorf("expected shared seq=1 on both records:\n%s", logTxt)
+	}
+	if c := strings.Count(logTxt, "seq=1"); c != 2 {
+		t.Errorf("expected seq=1 on exactly the started and completed records, got %d:\n%s", c, logTxt)
+	}
+
 	// The persisted raw-output file must exist and hold the raw bytes.
-	matches, _ := filepath.Glob(filepath.Join(logsDir, "planner-*.out"))
+	matches, _ := filepath.Glob(filepath.Join(logsDir, "[0-9][0-9][0-9]-planner.out"))
 	if len(matches) != 1 {
-		t.Fatalf("expected exactly one planner-*.out file, got %v", matches)
+		t.Fatalf("expected exactly one NNN-planner.out file, got %v", matches)
 	}
 	got, err := os.ReadFile(matches[0])
 	if err != nil {
@@ -113,9 +139,10 @@ func TestInvocationRedactsSecretEnv(t *testing.T) {
 		t.Errorf("secret value leaked into run log file:\n%s", fileData)
 	}
 	// The redacted key name should still be recorded (so the env's presence is
-	// visible) — proving redaction, not omission.
-	if !strings.Contains(console.String(), "ANTHROPIC_API_KEY (redacted)") {
-		t.Errorf("expected the redacted key name in the log:\n%s", console.String())
+	// visible) — proving redaction, not omission. It rides an Info attr, gated off
+	// the console at Normal, so assert against the run-log file.
+	if !strings.Contains(string(fileData), "ANTHROPIC_API_KEY (redacted)") {
+		t.Errorf("expected the redacted key name in the log:\n%s", fileData)
 	}
 }
 
@@ -145,6 +172,36 @@ func TestInvocationLogsFailureWithKind(t *testing.T) {
 	}
 	if !strings.Contains(out, "role=subtask-reviewer") {
 		t.Errorf("failure log should carry the role:\n%s", out)
+	}
+}
+
+// TestInvocationFilesSortByExecutionOrder proves the numeric seq PREFIX makes a
+// plain listing (filepath.Glob is sorted) return the persisted .out files in the
+// order the invocations ran, across multiple roles.
+func TestInvocationFilesSortByExecutionOrder(t *testing.T) {
+	logger := New(Normal, &bytes.Buffer{})
+	logsDir := t.TempDir()
+	if err := logger.AttachRunFile(logsDir); err != nil {
+		t.Fatalf("AttachRunFile: %v", err)
+	}
+
+	order := []string{"planner", "executor", "subtask-reviewer", "senior-reviewer"}
+	for _, role := range order {
+		inner := &stubHarness{name: "claude", res: harness.Result{Raw: []byte("out for " + role)}}
+		if _, err := WrapHarness(inner, logger).Run(context.Background(), harness.Request{Role: role}); err != nil {
+			t.Fatalf("Run(%s): %v", role, err)
+		}
+	}
+
+	matches, _ := filepath.Glob(filepath.Join(logsDir, "*.out"))
+	if len(matches) != len(order) {
+		t.Fatalf("expected %d .out files, got %v", len(order), matches)
+	}
+	for i, m := range matches {
+		want := order[i]
+		if got := filepath.Base(m); !strings.HasSuffix(got, "-"+want+".out") {
+			t.Errorf("file %d = %q, want role %q in execution order", i, got, want)
+		}
 	}
 }
 
