@@ -269,6 +269,38 @@ func TestWorkspaceUsesOnlyReadOnlyGitPerRepo(t *testing.T) {
 	}
 }
 
+func TestManifestSpansReposAndPlainAreaWithExclusions(t *testing.T) {
+	root := t.TempDir()
+	markRepo(t, filepath.Join(root, "repoA"))
+	writeFile(t, root, "repoA/a.go", "package a\n")
+	markRepo(t, filepath.Join(root, "repoB"))
+	writeFile(t, root, "repoB/b.go", "package b\n")
+	writeFile(t, root, "shared/loose.txt", "plain\n")
+	writeFile(t, root, "node_modules/x/i.js", "ignored\n")
+	writeFile(t, root, ".aixecutor/runs/r1/run.yaml", "status: x\n")
+
+	ws := discover(t, root, ".aixecutor/runs")
+	m, err := ws.Manifest(context.Background(), "")
+	if err != nil {
+		t.Fatalf("Manifest: %v", err)
+	}
+
+	got := make([]string, 0, len(m))
+	for p := range m {
+		got = append(got, filepath.ToSlash(p))
+	}
+	sort.Strings(got)
+	want := []string{"repoA/a.go", "repoB/b.go", "shared/loose.txt"}
+	if !eq(got, want) {
+		t.Errorf("Manifest paths = %v, want %v (node_modules + runsDir excluded)", got, want)
+	}
+
+	// The manifest fingerprints real files: size must match the bytes on disk.
+	if fm := m[filepath.FromSlash("shared/loose.txt")]; fm.Size != int64(len("plain\n")) {
+		t.Errorf("Manifest size for shared/loose.txt = %d, want %d", fm.Size, len("plain\n"))
+	}
+}
+
 func assertFile(t *testing.T, root, rel, want string) {
 	t.Helper()
 	got, err := os.ReadFile(filepath.Join(root, rel))

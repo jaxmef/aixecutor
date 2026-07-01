@@ -1,6 +1,11 @@
 package run
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"gopkg.in/yaml.v3"
+)
 
 func TestStatusValidity(t *testing.T) {
 	valid := []Status{
@@ -78,6 +83,48 @@ func TestSubtaskStatusInterruptedAndTerminal(t *testing.T) {
 	}
 	if SubtaskImplementing.IsTerminal() {
 		t.Error("implementing should not be terminal")
+	}
+}
+
+func TestSubtaskUndeclaredRoundTrip(t *testing.T) {
+	in := Subtask{
+		ID:         "st-01",
+		Title:      "example",
+		Status:     SubtaskDone,
+		Undeclared: []string{"pkg/a.go", "pkg/b.go"},
+	}
+	data, err := yaml.Marshal(in)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var got Subtask
+	if err := yaml.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(got.Undeclared) != 2 || got.Undeclared[0] != "pkg/a.go" || got.Undeclared[1] != "pkg/b.go" {
+		t.Errorf("Undeclared did not round-trip: got %v", got.Undeclared)
+	}
+}
+
+func TestSubtaskUndeclaredOmittedWhenEmpty(t *testing.T) {
+	data, err := yaml.Marshal(Subtask{ID: "st-01", Title: "example", Status: SubtaskDone})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(data), "undeclared") {
+		t.Errorf("empty Undeclared should be omitted, got:\n%s", data)
+	}
+}
+
+func TestSubtaskLoadsWithoutUndeclaredField(t *testing.T) {
+	// A run.yaml written before Undeclared existed must still load.
+	src := "id: st-01\ntitle: example\nstatus: done\n"
+	var got Subtask
+	if err := yaml.Unmarshal([]byte(src), &got); err != nil {
+		t.Fatalf("unmarshal legacy subtask: %v", err)
+	}
+	if got.Undeclared != nil {
+		t.Errorf("expected nil Undeclared for legacy subtask, got %v", got.Undeclared)
 	}
 }
 

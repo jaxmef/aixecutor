@@ -2,8 +2,11 @@ package workspace
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
+	"path/filepath"
 
 	"github.com/jaxmef/aixecutor/internal/git"
 )
@@ -75,6 +78,36 @@ func (w *Workspace) FullDiff(ctx context.Context, baselineDir string) (git.Diff,
 		return git.Diff{}, err
 	}
 	return w.snap.DiffTrees(ctx, baselineDir, tmp)
+}
+
+// Manifest enumerates the current workspace file set and returns a workspace-relative
+// path->FileMeta (mtime,size) listing — the multi-root analogue of Gateway.Manifest.
+// It reuses CurrentRels, so its enumeration and exclusions are identical to
+// CaptureBaseline / FullDiff by construction (tracked + untracked-non-ignored per repo
+// honouring each repo's .gitignore, plus the plain area, minus excluded prefixes); no
+// runsDir, editor-dir, or ignored path can appear. root lets the stats run under a
+// directory other than the workspace root; an empty root defaults to the workspace root.
+// Read-only: only ls-files enumeration and filesystem stats, never mutating git.
+func (w *Workspace) Manifest(ctx context.Context, root string) (git.Manifest, error) {
+	if root == "" {
+		root = w.root
+	}
+	rels, err := w.CurrentRels(ctx)
+	if err != nil {
+		return nil, err
+	}
+	m := make(git.Manifest, len(rels))
+	for _, rel := range rels {
+		info, err := os.Stat(filepath.Join(root, rel))
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				continue // listed but gone from the tree; nothing to fingerprint.
+			}
+			return nil, fmt.Errorf("workspace manifest: stat %q: %w", rel, err)
+		}
+		m[rel] = git.FileMeta{ModTime: info.ModTime(), Size: info.Size()}
+	}
+	return m, nil
 }
 
 // RestoreTree reverts the entire workspace to the snapshot at snapshotDir (the

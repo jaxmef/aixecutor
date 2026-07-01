@@ -60,6 +60,13 @@ type fakeGit struct {
 	// set, performs the actual tree mutation for an end-to-end amend test.
 	restoreCalls []restoreCall
 	restoreFn    func(snapshotDir string, excludes []string) (git.RestoreResult, error)
+
+	// manifestErr, when set, makes Manifest fail (to exercise the best-effort
+	// undeclared-edit detection error path). manifestExcludeDirs are top-level dir
+	// names whose contents Manifest omits, modelling the real gateway's exclusion of
+	// runsDir / editor dirs / .gitignored paths (which never reach detection).
+	manifestErr         error
+	manifestExcludeDirs []string
 }
 
 // restoreCall captures the arguments of one fakeGit.RestoreTree invocation.
@@ -153,6 +160,65 @@ func (f *fakeGit) FullDiff(ctx context.Context, baselineDir string) (git.Diff, e
 	// sees something derived from the real files. Diff the baseline snapshot dir
 	// against the repo root.
 	return f.DiffTrees(ctx, baselineDir, f.root)
+}
+
+// Manifest walks f.root and returns a path->FileMeta (mtime,size) listing, modelling
+// the real gateway's Manifest with raw FS reads instead of `git ls-files`. It skips
+// any `.git` directory and the configured manifestExcludeDirs, so runsDir / editor /
+// .gitignored paths are absent by construction — exactly like filterExcluded — and can
+// never reach undeclared-edit detection. manifestErr, when set, makes it fail so the
+// best-effort error path is exercisable.
+func (f *fakeGit) Manifest(_ context.Context, root string) (git.Manifest, error) {
+	if f.manifestErr != nil {
+		return nil, f.manifestErr
+	}
+	if root == "" {
+		root = f.root
+	}
+	m := git.Manifest{}
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, rerr := filepath.Rel(root, path)
+		if rerr != nil {
+			return rerr
+		}
+		if d.IsDir() {
+			if rel == "." {
+				return nil
+			}
+			if d.Name() == ".git" || f.manifestExcluded(rel) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !d.Type().IsRegular() {
+			return nil
+		}
+		info, ierr := d.Info()
+		if ierr != nil {
+			return ierr
+		}
+		m[filepath.ToSlash(rel)] = git.FileMeta{ModTime: info.ModTime(), Size: info.Size()}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// manifestExcluded reports whether the (slash) relpath's top-level segment is a
+// configured excluded dir, mirroring the gateway's segment-boundary prefix exclusion.
+func (f *fakeGit) manifestExcluded(rel string) bool {
+	top := strings.SplitN(filepath.ToSlash(rel), "/", 2)[0]
+	for _, d := range f.manifestExcludeDirs {
+		if top == d {
+			return true
+		}
+	}
+	return false
 }
 
 // fullDiffCalls returns how many times FullDiff was invoked, for assertions.

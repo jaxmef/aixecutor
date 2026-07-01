@@ -145,11 +145,26 @@ func (s *Scheduler) runExecutor(ctx context.Context, id string, priorFindings []
 		return "", fmt.Errorf("snapshotting subtask %q before-state: %w", id, err)
 	}
 
+	// fingerprint the working tree immediately before/after the executor
+	// runs so we can flag paths it changed that NO subtask declared (planner
+	// under-declaration). This is a strict side-channel: best-effort, never alters the
+	// per-subtask diff scope (still declared-globs only) below, never fails the subtask.
+	// A before-manifest error disables the check for this pass (nil sentinel).
+	beforeManifest, mErr := s.git.Manifest(ctx, workDir)
+	if mErr != nil {
+		s.progress.Logf("subtask %s: skipping undeclared-edit detection (before-manifest failed): %v", id, mErr)
+		beforeManifest = nil
+	}
+
 	// Invoke the executor harness in the working directory, injecting any prior
 	// reviewer findings so a remediation pass renders the "address these findings"
 	// prompt (empty on the initial pass).
 	if err := s.invokeExecutor(ctx, st, workDir, priorFindings); err != nil {
 		return "", fmt.Errorf("executor failed for subtask %q: %w", id, err)
+	}
+
+	if beforeManifest != nil {
+		s.recordUndeclaredEdits(ctx, id, workDir, beforeManifest)
 	}
 
 	// SNAPSHOT-AFTER: re-expand (the executor may have created new declared files)

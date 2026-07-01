@@ -60,6 +60,12 @@ type gitGateway interface {
 	// the whole change as it stands. baselineDir is taken straight from the
 	// persisted run.Baseline.Dir, so it works unchanged on resume.
 	FullDiff(ctx context.Context, baselineDir string) (git.Diff, error)
+	// Manifest returns a point-in-time path->FileMeta listing of the tree rooted at
+	// root (mtime+size per file), enumerated through the SAME read-only pipeline as
+	// CaptureBaseline/FullDiff (so runsDir, .gitignored, and editor-dir paths are
+	// excluded by construction). A before/after pair drives best-effort detection of
+	// executor edits outside any subtask's declared files. Read-only.
+	Manifest(ctx context.Context, root string) (git.Manifest, error)
 	// Worktree returns a worktree manager IFF policy is allow-worktree, else an
 	// actionable error. Under non-worktree isolation it is never called.
 	Worktree(policy string) (worktreeManager, error)
@@ -115,6 +121,10 @@ func (a workspaceGateway) DiffTrees(ctx context.Context, beforeDir, afterDir str
 
 func (a workspaceGateway) FullDiff(ctx context.Context, baselineDir string) (git.Diff, error) {
 	return a.ws.FullDiff(ctx, baselineDir)
+}
+
+func (a workspaceGateway) Manifest(ctx context.Context, root string) (git.Manifest, error) {
+	return a.ws.Manifest(ctx, root)
 }
 
 func (a workspaceGateway) RestoreTree(ctx context.Context, snapshotDir string, extraExcludes []string) (git.RestoreResult, error) {
@@ -202,6 +212,13 @@ type Scheduler struct {
 	renderer   *prompt.Renderer
 	ctxProv    contextProvider
 	reviewHook ReviewHook
+
+	// declaredGlobs is the static union of every subtask's declared Files globs,
+	// collected once at construction. Files are immutable after planning (see
+	// subtaskSnapshot), so this needs no lock and no owner round-trip. It drives
+	// best-effort detection of executor edits outside ANY subtask's declared files:
+	// a changed path matched by none of these is "undeclared-by-all".
+	declaredGlobs []string
 
 	// progress renders concise, semantic human progress. It is concurrency-safe
 	// (the scheduler fans out subtask workers in parallel), so it needs no extra
@@ -320,16 +337,17 @@ func NewScheduler(
 	}
 
 	s := &Scheduler{
-		run:        r,
-		cfg:        cfg,
-		executor:   h,
-		role:       role,
-		git:        gw,
-		store:      store,
-		renderer:   renderer,
-		ctxProv:    newRunContextProvider(store, r),
-		reviewHook: markDoneReviewHook,
-		progress:   log.NewProgress(nil),
+		run:           r,
+		cfg:           cfg,
+		executor:      h,
+		role:          role,
+		git:           gw,
+		store:         store,
+		renderer:      renderer,
+		ctxProv:       newRunContextProvider(store, r),
+		reviewHook:    markDoneReviewHook,
+		progress:      log.NewProgress(nil),
+		declaredGlobs: collectDeclaredGlobs(r.Subtasks),
 	}
 	for _, o := range opts {
 		o(s)

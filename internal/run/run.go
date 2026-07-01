@@ -88,6 +88,10 @@ type Subtask struct {
 	// clean run.yaml stays uncluttered and the field is backward-compatible with
 	// run.yaml files written before it existed (schemaVersion covers the shape).
 	Unresolved []Finding `yaml:"unresolved,omitempty"`
+	// Mirrors Unresolved's rationale: omitempty keeps a clean run.yaml
+	// uncluttered and stays backward-compatible with run.yaml files written before
+	// the field existed.
+	Undeclared []string `yaml:"undeclared,omitempty"`
 }
 
 // Finding is one reviewer finding persisted on the run (CLAUDE.md §3.3 review
