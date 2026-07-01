@@ -75,7 +75,8 @@ func runRun(c *cobra.Command, opts *GlobalOptions, task string) error {
 
 	// Observability (AIX-0014): concise human progress to stdout, structured logs to
 	// stderr + the run's logs/ dir (attached by the orchestrator once the run exists).
-	progress := newProgress(c.OutOrStdout())
+	progress := newProgress(opts, c.OutOrStdout())
+	defer progress.Close()
 	logger := newLogger(opts, c.ErrOrStderr())
 	defer logger.Close()
 
@@ -88,6 +89,8 @@ func runRun(c *cobra.Command, opts *GlobalOptions, task string) error {
 	defer stop()
 
 	r, runErr := orch.Start(ctx, task)
+	// Stop the live region before the summary prints so it lands on a clean line.
+	progress.Close()
 	return finishPipeline(c, opts, cfg, r, runErr)
 }
 
@@ -105,7 +108,7 @@ func finishPipeline(c *cobra.Command, opts *GlobalOptions, cfg config.Config, r 
 		return runErr
 	}
 
-	pipeline.WriteSummary(c.OutOrStdout(), r, docsDirFor(cfg, r))
+	pipeline.WriteSummary(c.OutOrStdout(), r, docsDirFor(cfg, r), colorEnabled(opts, c.OutOrStdout()))
 
 	switch {
 	case runErr == nil:

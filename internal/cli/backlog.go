@@ -108,7 +108,8 @@ func runBacklog(c *cobra.Command, opts *GlobalOptions, dirArg, gateFlag string) 
 		return err
 	}
 
-	progress := newProgress(c.OutOrStdout())
+	progress := newProgress(opts, c.OutOrStdout())
+	defer progress.Close()
 	logger := newLogger(opts, c.ErrOrStderr())
 	defer logger.Close()
 
@@ -137,6 +138,8 @@ func runBacklog(c *cobra.Command, opts *GlobalOptions, dirArg, gateFlag string) 
 
 	runner := backlog.NewRunner(graph, state, statePath, gate, ticketRun, c.OutOrStdout())
 	sum, runErr := runner.Run(ctx)
+	// Stop the live region before the summary prints so it lands on a clean line.
+	progress.Close()
 	return finishBacklog(c, dir, sum, runErr)
 }
 

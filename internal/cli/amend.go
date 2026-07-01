@@ -77,7 +77,8 @@ func runAmend(c *cobra.Command, opts *GlobalOptions, id string, confirm bool) er
 		}
 	}
 
-	progress := newProgress(c.OutOrStdout())
+	progress := newProgress(opts, c.OutOrStdout())
+	defer progress.Close()
 	logger := newLogger(opts, c.ErrOrStderr())
 	defer logger.Close()
 
@@ -90,5 +91,7 @@ func runAmend(c *cobra.Command, opts *GlobalOptions, id string, confirm bool) er
 	defer stop()
 
 	r, amendErr := orch.Amend(ctx, loaded.ID)
+	// Stop the live region before the summary prints so it lands on a clean line.
+	progress.Close()
 	return finishPipeline(c, opts, cfg, r, amendErr)
 }

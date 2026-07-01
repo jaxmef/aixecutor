@@ -129,13 +129,23 @@ func (l *Logger) LogsDir() string {
 // rebuildLocked reconstructs the slog.Logger to fan out to the console handler and
 // the file handler (when a file is attached). Caller holds mu (or is in New before
 // the logger is shared).
+//
+// The two handlers run at DIFFERENT levels. The file keeps the full
+// verbosity.level() mapping (Normal→Info, Verbose→Debug, Quiet→Warn) so the run's
+// durable log records everything. The console is quieter by default: structured
+// slog lines are gated to Warn unless verbosity is Verbose (then Debug, matching the
+// file), so a default run shows only human progress output, not raw slog records.
 func (l *Logger) rebuildLocked() {
-	level := l.verbosity.level()
+	fileLevel := l.verbosity.level()
+	consoleLevel := slog.LevelWarn
+	if l.verbosity == Verbose {
+		consoleLevel = slog.LevelDebug
+	}
 	handlers := []slog.Handler{
-		slog.NewTextHandler(l.console, &slog.HandlerOptions{Level: level}),
+		slog.NewTextHandler(l.console, &slog.HandlerOptions{Level: consoleLevel}),
 	}
 	if l.file != nil {
-		handlers = append(handlers, slog.NewTextHandler(l.file, &slog.HandlerOptions{Level: level}))
+		handlers = append(handlers, slog.NewTextHandler(l.file, &slog.HandlerOptions{Level: fileLevel}))
 	}
 	l.slogger = slog.New(fanout(handlers))
 }

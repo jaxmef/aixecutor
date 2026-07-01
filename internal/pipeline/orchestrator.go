@@ -294,7 +294,7 @@ func (o *Orchestrator) attachRunLogging(r *run.Run) {
 	// Wrap the registry so each role's harness logs its invocations + persists raw
 	// output. Done here (not at construction) because the logs dir is per-run.
 	o.reg = o.reg.Wrap(func(h harness.Harness) harness.Harness {
-		return log.WrapHarness(h, o.logger)
+		return log.WrapHarness(log.WrapLiveTimer(h, o.progress.Live()), o.logger)
 	})
 }
 

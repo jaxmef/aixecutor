@@ -58,6 +58,29 @@ func TestProgressSemanticEvents(t *testing.T) {
 	}
 }
 
+// TestProgressColorEnabled proves that, with colour enabled via WithColor, a known
+// header carries the expected SGR code while its textual content is preserved, and
+// that the default (colour off) stays plain.
+func TestProgressColorEnabled(t *testing.T) {
+	var buf bytes.Buffer
+	p := NewProgress(&buf).WithColor(true)
+	p.PhaseStarted("Planning")
+
+	out := buf.String()
+	if !strings.Contains(out, AnsiBold+"Planning"+AnsiReset) {
+		t.Errorf("coloured PhaseStarted missing SGR codes: %q", out)
+	}
+	if !strings.Contains(out, "Planning") {
+		t.Errorf("coloured output dropped the header text: %q", out)
+	}
+
+	var plain bytes.Buffer
+	NewProgress(&plain).PhaseStarted("Planning")
+	if strings.Contains(plain.String(), "\x1b[") {
+		t.Errorf("default (colour off) output must be plain: %q", plain.String())
+	}
+}
+
 // TestProgressNilSafe proves methods on a nil *Progress are no-ops (so phases need
 // not nil-check).
 func TestProgressNilSafe(t *testing.T) {

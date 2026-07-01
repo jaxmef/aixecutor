@@ -8,8 +8,11 @@ import (
 	"testing"
 )
 
-// TestVerbosityGating proves -v/--verbose admits debug lines while the default
-// (info) suppresses them, and quiet suppresses info too.
+// TestVerbosityGating proves the CONSOLE handler is quiet by default: at Normal it
+// suppresses both Debug and Info (only human progress, not raw slog, reaches the
+// console), and -v/--verbose restores them. Quiet suppresses both too. The file
+// handler's own (looser) level mapping is covered by
+// TestAttachRunFileWritesStructuredLog.
 func TestVerbosityGating(t *testing.T) {
 	cases := []struct {
 		name      string
@@ -17,7 +20,7 @@ func TestVerbosityGating(t *testing.T) {
 		wantDebug bool
 		wantInfo  bool
 	}{
-		{"normal", Normal, false, true},
+		{"normal", Normal, false, false},
 		{"verbose", Verbose, true, true},
 		{"quiet", Quiet, false, false},
 	}
@@ -38,29 +41,84 @@ func TestVerbosityGating(t *testing.T) {
 	}
 }
 
-// TestAttachRunFileWritesStructuredLog proves attaching a run file makes log lines
-// land in <logsDir>/aixecutor.log as well as the console.
+// TestAttachRunFileWritesStructuredLog proves the console and file handlers run at
+// independent levels. At Normal, an Info line still lands in the run file but is
+// gated off the console (only Warn+ reaches the console by default); -v re-enables
+// console structured logs while the file behaviour is unchanged. The Debug-level
+// file mapping is checked separately in TestAttachRunFileFileLevelMapping.
 func TestAttachRunFileWritesStructuredLog(t *testing.T) {
-	var console bytes.Buffer
-	l := New(Normal, &console)
-	logsDir := t.TempDir()
-	if err := l.AttachRunFile(logsDir); err != nil {
-		t.Fatalf("AttachRunFile: %v", err)
+	cases := []struct {
+		name        string
+		v           Verbosity
+		wantConsole bool
+	}{
+		{"normal suppresses console info", Normal, false},
+		{"verbose restores console info", Verbose, true},
 	}
-	l.Info("hello run", "id", "run-1")
-	if err := l.Close(); err != nil {
-		t.Fatalf("Close: %v", err)
-	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var console bytes.Buffer
+			l := New(tc.v, &console)
+			logsDir := t.TempDir()
+			if err := l.AttachRunFile(logsDir); err != nil {
+				t.Fatalf("AttachRunFile: %v", err)
+			}
+			l.Info("hello run", "id", "run-1")
+			if err := l.Close(); err != nil {
+				t.Fatalf("Close: %v", err)
+			}
 
-	data, err := os.ReadFile(filepath.Join(logsDir, "aixecutor.log"))
-	if err != nil {
-		t.Fatalf("reading run log: %v", err)
+			data, err := os.ReadFile(filepath.Join(logsDir, "aixecutor.log"))
+			if err != nil {
+				t.Fatalf("reading run log: %v", err)
+			}
+			if !strings.Contains(string(data), "hello run") || !strings.Contains(string(data), "id=run-1") {
+				t.Errorf("run log missing the structured line:\n%s", data)
+			}
+			if got := strings.Contains(console.String(), "hello run"); got != tc.wantConsole {
+				t.Errorf("console info present = %v, want %v\n%s", got, tc.wantConsole, console.String())
+			}
+		})
 	}
-	if !strings.Contains(string(data), "hello run") || !strings.Contains(string(data), "id=run-1") {
-		t.Errorf("run log missing the structured line:\n%s", data)
+}
+
+// TestAttachRunFileFileLevelMapping proves the FILE handler keeps the full
+// verbosity.level() mapping regardless of the quieter console gating: Normal keeps
+// Info but drops Debug; Verbose keeps Debug.
+func TestAttachRunFileFileLevelMapping(t *testing.T) {
+	cases := []struct {
+		name      string
+		v         Verbosity
+		wantDebug bool
+		wantInfo  bool
+	}{
+		{"normal", Normal, false, true},
+		{"verbose", Verbose, true, true},
 	}
-	if !strings.Contains(console.String(), "hello run") {
-		t.Errorf("console missing the line too:\n%s", console.String())
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			l := New(tc.v, &bytes.Buffer{})
+			logsDir := t.TempDir()
+			if err := l.AttachRunFile(logsDir); err != nil {
+				t.Fatalf("AttachRunFile: %v", err)
+			}
+			l.Debug("a debug line", "k", "v")
+			l.Info("an info line", "k", "v")
+			if err := l.Close(); err != nil {
+				t.Fatalf("Close: %v", err)
+			}
+			data, err := os.ReadFile(filepath.Join(logsDir, "aixecutor.log"))
+			if err != nil {
+				t.Fatalf("reading run log: %v", err)
+			}
+			out := string(data)
+			if got := strings.Contains(out, "a debug line"); got != tc.wantDebug {
+				t.Errorf("file debug present = %v, want %v\n%s", got, tc.wantDebug, out)
+			}
+			if got := strings.Contains(out, "an info line"); got != tc.wantInfo {
+				t.Errorf("file info present = %v, want %v\n%s", got, tc.wantInfo, out)
+			}
+		})
 	}
 }
 

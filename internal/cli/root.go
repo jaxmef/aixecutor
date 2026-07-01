@@ -34,6 +34,8 @@ type GlobalOptions struct {
 	Quiet bool
 	// NoUpdateCheck disables the startup check for newer releases (AIX-0022).
 	NoUpdateCheck bool
+	// NoColor disables coloured human output regardless of TTY detection.
+	NoColor bool
 }
 
 // newRootCmd builds the root command, attaches the persistent global flags to
@@ -69,6 +71,8 @@ func newRootCmd(opts *GlobalOptions) *cobra.Command {
 		"suppress info logging (warnings and errors only)")
 	flags.BoolVar(&opts.NoUpdateCheck, "no-update-check", false,
 		"skip the startup check for a newer aixecutor release")
+	flags.BoolVar(&opts.NoColor, "no-color", false,
+		"disable coloured output")
 
 	root.AddCommand(
 		newRunCmd(opts),

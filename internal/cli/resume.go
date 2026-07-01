@@ -75,7 +75,8 @@ func runResume(c *cobra.Command, opts *GlobalOptions, args []string) error {
 
 	// Observability (AIX-0014): concise human progress to stdout, structured logs to
 	// stderr + the run's logs/ dir (attached by the orchestrator).
-	progress := newProgress(c.OutOrStdout())
+	progress := newProgress(opts, c.OutOrStdout())
+	defer progress.Close()
 	logger := newLogger(opts, c.ErrOrStderr())
 	defer logger.Close()
 
@@ -88,5 +89,7 @@ func runResume(c *cobra.Command, opts *GlobalOptions, args []string) error {
 	defer stop()
 
 	r, runErr := orch.Resume(ctx, loaded.ID)
+	// Stop the live region before the summary prints so it lands on a clean line.
+	progress.Close()
 	return finishPipeline(c, opts, cfg, r, runErr)
 }

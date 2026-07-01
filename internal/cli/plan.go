@@ -65,7 +65,8 @@ func runPlan(c *cobra.Command, opts *GlobalOptions, task string) error {
 	// Observability (AIX-0014): human progress to stdout, structured logs to stderr
 	// + the run's logs/ dir (attached once the run exists). The logger is handed to
 	// the registry so the retry wrapper logs attempts/backoff too.
-	progress := newProgress(c.OutOrStdout())
+	progress := newProgress(opts, c.OutOrStdout())
+	defer progress.Close()
 	logger := newLogger(opts, c.ErrOrStderr())
 	defer logger.Close()
 

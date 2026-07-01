@@ -215,7 +215,7 @@ func TestOrchestratorFullPipeline(t *testing.T) {
 
 	// A summary is produced and ends with the no-commit reminder.
 	var sum strings.Builder
-	WriteSummary(&sum, r, store.DocsDir(r.ID))
+	WriteSummary(&sum, r, store.DocsDir(r.ID), false)
 	if !strings.Contains(sum.String(), "Nothing was committed") {
 		t.Errorf("summary missing the no-commit reminder:\n%s", sum.String())
 	}
@@ -537,7 +537,7 @@ func TestOrchestratorSummaryContent(t *testing.T) {
 	}
 
 	var sum strings.Builder
-	WriteSummary(&sum, r, store.DocsDir(r.ID))
+	WriteSummary(&sum, r, store.DocsDir(r.ID), false)
 	s := sum.String()
 
 	for _, want := range []string{
@@ -613,7 +613,7 @@ func TestOrchestratorDryRunCompletes(t *testing.T) {
 
 	// The summary still ends with the no-commit reminder under dry-run.
 	var sum strings.Builder
-	WriteSummary(&sum, r, store.DocsDir(r.ID))
+	WriteSummary(&sum, r, store.DocsDir(r.ID), false)
 	if !strings.Contains(sum.String(), "Nothing was committed") {
 		t.Errorf("dry-run summary missing the no-commit reminder:\n%s", sum.String())
 	}

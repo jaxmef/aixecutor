@@ -286,13 +286,25 @@ and dev/source or `--dry-run` runs all bypass it regardless of `update.check`.
 ### Observability
 
 A live run prints concise, incremental progress to stdout (phase banners, per-subtask
-start/finish with loop counts, review verdicts, senior-review rounds) and writes
-structured logs — one record per harness invocation, with a pointer to that
-invocation's full output — under each run's `logs/` directory. `-v/--verbose` adds debug
-detail; `-q/--quiet` keeps only warnings and errors; output degrades to plain,
-line-oriented text on a non-TTY (pipes/CI). Secrets in the environment are never logged.
-`aixecutor status <run-id>` shows the phase, per-subtask state and loop counts, the
-senior-review status (clean vs. unresolved findings), elapsed time, and the docs path.
+start/finish with loop counts, review verdicts, senior-review rounds). On a TTY it also
+keeps a **live status region** at the bottom of the screen showing the current phase and
+each in-flight harness invocation with a ticking elapsed timer, so a long or slow run is
+visibly alive rather than a frozen terminal. The region redraws in place; it degrades to
+periodic plain "still running" lines on a non-TTY (pipes/CI) and is suppressed under
+`-q/--quiet`.
+
+Human progress and structured logs no longer share the console. By default the console
+shows only the human progress stream; the full structured record — one record per harness
+invocation, with a pointer to that invocation's output — is written under each run's
+`logs/` directory. `-v/--verbose` brings structured logs back to the console (and adds
+debug detail); `-q/--quiet` keeps only warnings and errors.
+
+Output is **coloured by default** (phase headers, subtask states, review verdicts, the
+final summary). Colour auto-disables when stdout is not a TTY, when `NO_COLOR` is set, or
+with the `--no-color` flag — leaving clean, escape-free plain text. (`-q/--quiet`
+suppresses the live status region, not colour.) Secrets in the environment are never logged. `aixecutor status <run-id>` shows the
+phase, per-subtask state and loop counts, the senior-review status (clean vs. unresolved
+findings), elapsed time, and the docs path.
 
 ---
 

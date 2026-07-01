@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/jaxmef/aixecutor/internal/log"
 	"github.com/jaxmef/aixecutor/internal/run"
 )
 
@@ -16,21 +17,22 @@ import (
 // store knows it) so the summary can point the user at the plan/context/manual
 // docs.
 //
-// The summary is plain-terminal readable (no color, aligned columns kept simple)
-// and ALWAYS ends with the explicit reminder that nothing was committed — the
-// working tree is the user's to inspect and commit (CLAUDE.md §2 invariant 1 /
-// §3.3 "Never commit").
-func WriteSummary(w io.Writer, r *run.Run, docsDir string) {
+// The summary is plain-terminal readable (aligned columns kept simple) and ALWAYS
+// ends with the explicit reminder that nothing was committed — the working tree is
+// the user's to inspect and commit (CLAUDE.md §2 invariant 1 / §3.3 "Never commit").
+// When color is true the status word, senior verdict, and per-subtask statuses are
+// coloured via log.Colorize; the reminder text is never coloured.
+func WriteSummary(w io.Writer, r *run.Run, docsDir string, color bool) {
 	if w == nil || r == nil {
 		return
 	}
 
 	fmt.Fprintf(w, "\n==================== Run summary ====================\n")
 	fmt.Fprintf(w, "Run:    %s\n", r.ID)
-	fmt.Fprintf(w, "Status: %s\n", r.Status)
+	fmt.Fprintf(w, "Status: %s\n", log.Colorize(color, runStatusColor(r.Status), string(r.Status)))
 
-	writeSubtaskOutcomes(w, r)
-	writeSeniorVerdict(w, r)
+	writeSubtaskOutcomes(w, r, color)
+	writeSeniorVerdict(w, r, color)
 
 	if docsDir != "" {
 		fmt.Fprintf(w, "\nDocs:   %s\n", docsDir)
@@ -47,7 +49,7 @@ func WriteSummary(w io.Writer, r *run.Run, docsDir string) {
 // executor↔reviewer loop count, and a count of any unresolved findings carried
 // forward from a subtask whose review did not converge. An empty subtask list (a
 // run that stopped at planning, or a dry-run before planning) is reported plainly.
-func writeSubtaskOutcomes(w io.Writer, r *run.Run) {
+func writeSubtaskOutcomes(w io.Writer, r *run.Run, color bool) {
 	done, total := r.CountSubtasks()
 	fmt.Fprintf(w, "\nSubtasks (%d/%d done):\n", done, total)
 	if total == 0 {
@@ -56,7 +58,8 @@ func writeSubtaskOutcomes(w io.Writer, r *run.Run) {
 	}
 	for i := range r.Subtasks {
 		st := &r.Subtasks[i]
-		line := fmt.Sprintf("  - %-8s %-12s loops=%d", st.ID, st.Status, st.Loops)
+		status := log.Colorize(color, subtaskStatusColor(st.Status), fmt.Sprintf("%-12s", st.Status))
+		line := fmt.Sprintf("  - %-8s %s loops=%d", st.ID, status, st.Loops)
 		if n := len(st.Unresolved); n > 0 {
 			line += fmt.Sprintf("  (%d unresolved finding(s) carried forward)", n)
 		}
@@ -72,7 +75,7 @@ func writeSubtaskOutcomes(w io.Writer, r *run.Run) {
 // (Status=done, no unresolved findings), and a report-and-proceed at the cap
 // (Status=done WITH unresolved findings). When findings remain, it lists them so
 // the user sees exactly what is open without opening unresolved.md.
-func writeSeniorVerdict(w io.Writer, r *run.Run) {
+func writeSeniorVerdict(w io.Writer, r *run.Run, color bool) {
 	sr := r.SeniorReview
 	fmt.Fprintf(w, "\nSenior review: ")
 	switch {
@@ -92,13 +95,40 @@ func writeSeniorVerdict(w io.Writer, r *run.Run) {
 
 	// Status is done. Clean vs. cap-reached is read off Unresolved.
 	if len(sr.Unresolved) == 0 {
-		fmt.Fprintf(w, "clean after %d remediation round(s)\n", sr.Rounds)
+		fmt.Fprintf(w, "%s after %d remediation round(s)\n",
+			log.Colorize(color, log.AnsiGreen, "clean"), sr.Rounds)
 		return
 	}
-	fmt.Fprintf(w, "completed with %d unresolved finding(s) after %d round(s) (cap reached):\n",
-		len(sr.Unresolved), sr.Rounds)
+	fmt.Fprintf(w, "%s with %d unresolved finding(s) after %d round(s) (cap reached):\n",
+		log.Colorize(color, log.AnsiYellow, "completed"), len(sr.Unresolved), sr.Rounds)
 	for i, f := range sr.Unresolved {
 		fmt.Fprintf(w, "    %d. %s\n", i+1, formatFinding(f))
+	}
+}
+
+// runStatusColor maps a run status to its SGR code: green for a clean completion,
+// red for the terminal failure off-ramps, yellow for everything in between.
+func runStatusColor(s run.Status) string {
+	switch s {
+	case run.StatusCompleted:
+		return log.AnsiGreen
+	case run.StatusFailed, run.StatusAborted:
+		return log.AnsiRed
+	default:
+		return log.AnsiYellow
+	}
+}
+
+// subtaskStatusColor maps a subtask status to its SGR code: green when done, red on
+// failure/blocked, yellow while in flight or pending.
+func subtaskStatusColor(s run.SubtaskStatus) string {
+	switch s {
+	case run.SubtaskDone:
+		return log.AnsiGreen
+	case run.SubtaskFailed, run.SubtaskBlocked:
+		return log.AnsiRed
+	default:
+		return log.AnsiYellow
 	}
 }
 
