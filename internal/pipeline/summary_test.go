@@ -3,15 +3,19 @@ package pipeline
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jaxmef/aixecutor/internal/log"
 	"github.com/jaxmef/aixecutor/internal/run"
 )
 
 func sampleRun() *run.Run {
+	created := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	return &run.Run{
-		ID:     "run-1",
-		Status: run.StatusCompleted,
+		ID:        "run-1",
+		Status:    run.StatusCompleted,
+		CreatedAt: created,
+		UpdatedAt: created.Add(2*time.Minute + 3*time.Second),
 		Subtasks: []run.Subtask{
 			{ID: "st-01", Title: "schema", Status: run.SubtaskDone, Loops: 1},
 		},
@@ -31,6 +35,9 @@ func TestWriteSummaryColorDisabled(t *testing.T) {
 	}
 	if !strings.Contains(out, "Status: completed") {
 		t.Errorf("plain summary missing status word:\n%s", out)
+	}
+	if !strings.Contains(out, "Elapsed: 2m3s") {
+		t.Errorf("plain summary missing elapsed line:\n%s", out)
 	}
 	const reminder = "NOTE: Nothing was committed. aixecutor never runs git write commands —"
 	if !strings.Contains(out, reminder) {

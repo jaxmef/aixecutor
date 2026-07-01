@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"text/tabwriter"
-	"time"
 
 	"github.com/jaxmef/aixecutor/internal/run"
 	"github.com/spf13/cobra"
@@ -51,7 +50,7 @@ func renderRunStatus(w io.Writer, r *run.Run, docsDir string) {
 	fmt.Fprintf(w, "Task:    %s\n", excerpt(r.Task, taskExcerptLen))
 	fmt.Fprintf(w, "Created: %s\n", formatTime(r.CreatedAt))
 	fmt.Fprintf(w, "Updated: %s\n", formatTime(r.UpdatedAt))
-	fmt.Fprintf(w, "Elapsed: %s\n", formatElapsed(r.CreatedAt, r.UpdatedAt))
+	fmt.Fprintf(w, "Elapsed: %s\n", run.FormatElapsed(r.CreatedAt, r.UpdatedAt))
 	if r.Baseline.Dir != "" {
 		fmt.Fprintf(w, "Baseline: %s (%d files)\n", r.Baseline.Dir, r.Baseline.Files)
 	}
@@ -76,21 +75,6 @@ func renderRunStatus(w io.Writer, r *run.Run, docsDir string) {
 
 	fmt.Fprintf(w, "\nSenior review: %s\n", seniorReviewLine(r.SeniorReview))
 	writeUnresolvedFindings(w, r)
-}
-
-// formatElapsed renders the wall-clock span from created to updated (the run's
-// last checkpoint), so `status` shows how long the run has taken / ran for. A
-// zero or negative span (missing/foreign timestamps) renders as "-". The duration
-// is rounded to the second for readability.
-func formatElapsed(created, updated time.Time) string {
-	if created.IsZero() || updated.IsZero() {
-		return "-"
-	}
-	d := updated.Sub(created)
-	if d < 0 {
-		return "-"
-	}
-	return d.Round(time.Second).String()
 }
 
 // seniorReviewLine renders the senior-review phase as a one-line summary,

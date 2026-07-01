@@ -30,6 +30,7 @@ func WriteSummary(w io.Writer, r *run.Run, docsDir string, color bool) {
 	fmt.Fprintf(w, "\n==================== Run summary ====================\n")
 	fmt.Fprintf(w, "Run:    %s\n", r.ID)
 	fmt.Fprintf(w, "Status: %s\n", log.Colorize(color, runStatusColor(r.Status), string(r.Status)))
+	fmt.Fprintf(w, "Elapsed: %s\n", run.FormatElapsed(r.CreatedAt, r.UpdatedAt))
 
 	writeSubtaskOutcomes(w, r, color)
 	writeSeniorVerdict(w, r, color)
