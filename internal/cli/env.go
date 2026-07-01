@@ -60,7 +60,8 @@ func resolveExecEnv(opts *GlobalOptions, cfg config.Config) (execEnv, error) {
 
 	ws, err := workspace.Discover(wsRoot, workspace.Options{
 		MaxDepth:        cfg.Workspace.MaxDepth,
-		Ignore:          cfg.Workspace.Ignore,
+		Ignore:          cfg.Ignore,
+		ExcludeNames:    cfg.Ignore,
 		ExcludePrefixes: workspaceExcludes(cfg, wsRoot),
 	})
 	if err != nil {
@@ -94,6 +95,6 @@ func newCreateStoreEnv(cfg config.Config, env execEnv) (*run.Store, error) {
 // satisfy AIX-0020's scope/size guard.
 func warnLargeSnapshot(bytes int64) {
 	fmt.Fprintf(os.Stderr,
-		"aixecutor: warning: the workspace snapshot is large (%d bytes) — consider narrowing --workspace or the workspace.ignore set\n",
+		"aixecutor: warning: the workspace snapshot is large (%d bytes) — consider narrowing --workspace or the ignore set\n",
 		bytes)
 }

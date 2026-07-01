@@ -301,6 +301,40 @@ func TestManifestSpansReposAndPlainAreaWithExclusions(t *testing.T) {
 	}
 }
 
+// TestExcludeNamesDropsEditorDirsFromSnapshots verifies Options.ExcludeNames is wired
+// into ws.snap so editor/tool dirs (matched by base name at any depth) never enter the
+// workspace snapshots the review diffs are computed from, while a real edit survives.
+func TestExcludeNamesDropsEditorDirsFromSnapshots(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "main.go", "package main\n")
+	writeFile(t, root, ".idea/workspace.xml", "<project/>\n")
+	writeFile(t, root, ".DS_Store", "\x00\x01\n")
+	writeFile(t, root, "pkg/.vscode/settings.json", "{}\n")
+
+	ws, err := Discover(root, Options{
+		MaxDepth:     8,
+		ExcludeNames: []string{".idea", ".vscode", ".DS_Store"},
+		Opener:       fakeOpener(),
+	})
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+
+	snapDir := filepath.Join(t.TempDir(), "snap")
+	paths := []string{"main.go", ".idea/workspace.xml", ".DS_Store", "pkg/.vscode/settings.json"}
+	if _, err := ws.SnapshotPaths(snapDir, paths, nil); err != nil {
+		t.Fatalf("SnapshotPaths: %v", err)
+	}
+	if !fileExists(filepath.Join(snapDir, "main.go")) {
+		t.Error("real file main.go missing from snapshot")
+	}
+	for _, ed := range []string{".idea/workspace.xml", ".DS_Store", "pkg/.vscode/settings.json"} {
+		if fileExists(filepath.Join(snapDir, filepath.FromSlash(ed))) {
+			t.Errorf("editor/tool path %q leaked into snapshot", ed)
+		}
+	}
+}
+
 func assertFile(t *testing.T, root, rel, want string) {
 	t.Helper()
 	got, err := os.ReadFile(filepath.Join(root, rel))

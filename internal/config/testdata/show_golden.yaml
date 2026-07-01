@@ -77,13 +77,16 @@ backlog:
 workspace:
   root: ""
   maxDepth: 4
-  ignore:
-    - node_modules
-    - vendor
-    - dist
-    - build
-    - .next
-    - target
 update:
   check: true
   interval: 24h0m0s
+ignore:
+  - .idea
+  - .vscode
+  - .DS_Store
+  - node_modules
+  - vendor
+  - dist
+  - build
+  - .next
+  - target

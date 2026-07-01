@@ -25,6 +25,11 @@ type Config struct {
 	Backlog   Backlog            `yaml:"backlog"`
 	Workspace Workspace          `yaml:"workspace"`
 	Update    Update             `yaml:"update"`
+	// Ignore is the set of directory/file names dropped from diffs and reviews at
+	// any depth, and skipped when walking non-git workspace areas. `.git` and
+	// paths.runsDir are always ignored regardless. Applies to in-repo and
+	// workspace diffs alike; a config-supplied list replaces this wholesale.
+	Ignore []string `yaml:"ignore"`
 }
 
 // Paths controls where the tool writes its per-project artifacts. CONFIGURABLE.
@@ -164,10 +169,6 @@ type Workspace struct {
 	// MaxDepth bounds how deep beneath the root git repos are discovered (a guard
 	// against scanning a huge org tree). >= 1; the root itself is depth 1.
 	MaxDepth int `yaml:"maxDepth"`
-	// Ignore is the set of directory names skipped when walking NON-git areas of the
-	// workspace (where there is no .gitignore to lean on). `.git` and paths.runsDir
-	// are always ignored regardless. These names are matched at any depth.
-	Ignore []string `yaml:"ignore"`
 }
 
 // Update configures the startup update check (AIX-0022): a best-effort, non-blocking

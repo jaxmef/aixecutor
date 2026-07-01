@@ -102,6 +102,7 @@ func configureGitExclusions(cfg config.Config, gw *git.Gateway) {
 	if rel := run.RepoRelRunsDir(cfg, gw.RepoRoot()); rel != "" {
 		gw.SetExcludePrefixes(rel)
 	}
+	gw.SetExcludeNames(cfg.Ignore...)
 }
 
 // newOrchestrator wires a pipeline.Orchestrator end-to-end from the resolved

@@ -108,6 +108,21 @@ func TestLoadDeepMergeProof(t *testing.T) {
 	}
 }
 
+// TestLoadIgnoreReplacesWholesale proves the top-level ignore list is loaded and
+// that a config-supplied list replaces the default wholesale (no concatenation).
+func TestLoadIgnoreReplacesWholesale(t *testing.T) {
+	repo := t.TempDir()
+	writeConfig(t, repo, "ignore:\n  - build\n")
+
+	cfg, _, err := Load(LoadOptions{HomeDir: emptyHome(t), WorkingDir: repo})
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(cfg.Ignore) != 1 || cfg.Ignore[0] != "build" {
+		t.Errorf("ignore = %v, want [build] (list must replace wholesale)", cfg.Ignore)
+	}
+}
+
 // TestLoadUpdateDeepMerge proves a local layer setting only update.check flips
 // that one key while update.interval keeps its default (per-key map merge).
 func TestLoadUpdateDeepMerge(t *testing.T) {
@@ -230,6 +245,7 @@ func TestLoadStrictRejectsUnknownKey(t *testing.T) {
 		{"unknown nested key", "pipeline:\n  execution:\n    bogus: 1\n"},
 		{"misspelled known key", "paths:\n  runDir: x\n"}, // runsDir typo
 		{"unknown key under update", "update:\n  intervl: 1h\n"},
+		{"retired workspace.ignore key", "workspace:\n  ignore:\n    - build\n"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

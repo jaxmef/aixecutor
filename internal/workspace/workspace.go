@@ -33,6 +33,9 @@ type Options struct {
 	// Ignore is the set of directory names skipped when walking non-git areas. `.git`
 	// is always skipped. Matched at any depth by base name.
 	Ignore []string
+	// ExcludeNames are dir/file names dropped from the workspace diffs at any depth
+	// (via the snapshot gateway). It parallels Ignore, which drives the discovery walk.
+	ExcludeNames []string
 	// ExcludePrefixes are workspace-relative path prefixes always excluded from
 	// enumeration (e.g. the tool's runsDir), so run artifacts never enter the
 	// baseline, diffs, or a revert.
@@ -106,6 +109,7 @@ func Discover(root string, opts Options) (*Workspace, error) {
 		snap:     git.NewGatewayWithRunner(abs, git.ExecRunner),
 	}
 	ws.snap.SetExcludePrefixes(ws.excludes...)
+	ws.snap.SetExcludeNames(opts.ExcludeNames...)
 	if err := ws.discoverRepos(maxDepth); err != nil {
 		return nil, err
 	}

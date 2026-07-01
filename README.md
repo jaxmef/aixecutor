@@ -204,12 +204,38 @@ aixecutor --workspace ~/work/org run "rename the User.email field everywhere"
 
 The baseline, per-subtask and senior diffs, and the **revert** (the review-checkpoint
 amend) all span the whole workspace — every repo and plain dir — using each repo's
-`.gitignore` where it exists and a configurable ignore set elsewhere. Subtask file globs are
+`.gitignore` where it exists and the top-level `ignore` set elsewhere. Subtask file globs are
 **workspace-relative** (`repoA/internal/**`, `dirB/...`). It also runs in a **plain non-git
 directory** (no git at all). The single-repo path is unchanged. As everywhere, **no git
 write commands** run in any repo — restoration is plain file I/O against the run-start
-snapshot, including each repo's pre-existing uncommitted changes. Set a default root and the
-off-repo ignore set under `workspace.*` in config.
+snapshot, including each repo's pre-existing uncommitted changes. Set a default root under
+`workspace.*` in config.
+
+### Keeping editor/tool noise out of reviews
+
+Reviewers should never get a finding about `.idea/workspace.xml`. The top-level `ignore`
+list names directories/files dropped from every diff — baseline, per-subtask, and
+senior/full — matching a path segment **at any depth**, so nested `sub/.idea/…` is caught
+too. It applies to both **in-repo** and **workspace** diffs and drives the non-git discovery
+walk. Defaults cover editor/tool metadata and build output:
+
+```yaml
+ignore:
+  - .idea
+  - .vscode
+  - .DS_Store
+  - node_modules
+  - vendor
+  - dist
+  - build
+  - .next
+  - target
+```
+
+Like every list in the config, an override **replaces** the list wholesale (it does not
+append) — supply the full set you want. The run artifacts dir (`paths.runsDir`) is always
+excluded on top of this, and no `.gitignore` behavior is changed; `ignore` only *adds*
+excludes.
 
 ---
 

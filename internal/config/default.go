@@ -128,11 +128,11 @@ func Default() Config {
 		Workspace: Workspace{
 			Root:     "",
 			MaxDepth: 4,
-			Ignore:   []string{"node_modules", "vendor", "dist", "build", ".next", "target"},
 		},
 		Update: Update{
 			Check:    true,
 			Interval: min(24 * time.Hour),
 		},
+		Ignore: []string{".idea", ".vscode", ".DS_Store", "node_modules", "vendor", "dist", "build", ".next", "target"},
 	}
 }

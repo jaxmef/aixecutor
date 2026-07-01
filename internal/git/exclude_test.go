@@ -168,3 +168,80 @@ func TestExcludePrefixMatchingAndNormalization(t *testing.T) {
 		}
 	}
 }
+
+// TestExcludeNameMatchingAndNormalization unit-tests the name logic directly:
+// whole-segment matching at any depth (root file, nested dir, deeply nested),
+// no substring false-positives (name "idea" must not exclude "ideas/x.go"), and
+// that invalid names (empty, whitespace, containing a separator, "."/"..") are
+// dropped during normalization.
+func TestExcludeNameMatchingAndNormalization(t *testing.T) {
+	g := newGatewayWithRunner(t.TempDir(), nil)
+	g.SetExcludeNames(
+		".idea", ".DS_Store", "node_modules",
+		"  .vscode  ", // trimmed to ".vscode"
+		"", "   ", ".", "..", // all dropped
+		filepath.FromSlash("a/b"), "c/d", // contain a separator → dropped
+		".idea", // duplicate → collapsed
+	)
+	want := []string{".DS_Store", ".idea", ".vscode", "node_modules"}
+	if got := g.excludeNames; strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("excludeNames = %v; want %v", got, want)
+	}
+
+	excluded := []string{
+		".DS_Store",                                   // root-level file name
+		filepath.FromSlash(".idea/workspace.xml"),     // nested under a name dir
+		filepath.FromSlash("sub/dir/.idea/x"),         // name dir at depth
+		filepath.FromSlash("a/node_modules/pkg/i.js"), // any-depth dir name
+	}
+	for _, p := range excluded {
+		if !g.isExcluded(p) {
+			t.Errorf("isExcluded(%q) = false; want true", p)
+		}
+	}
+	notExcluded := []string{
+		filepath.FromSlash("ideas/x.go"),        // "idea" is a substring only
+		filepath.FromSlash("src/.DS_Store_bak"), // superstring of ".DS_Store"
+		filepath.FromSlash("node_modules_old/y"),
+		"main.go",
+	}
+	for _, p := range notExcluded {
+		if g.isExcluded(p) {
+			t.Errorf("isExcluded(%q) = true; want false", p)
+		}
+	}
+}
+
+// TestExcludeNamesComposeWithPrefix proves prefix and name exclusion compose: a
+// gateway configured with both a runsDir prefix and editor/tool names filters
+// paths matched by EITHER, and the fast-path guard requires both sets empty.
+func TestExcludeNamesComposeWithPrefix(t *testing.T) {
+	g := newGatewayWithRunner(t.TempDir(), nil)
+
+	// No configuration → fast path returns the input unchanged.
+	in := []string{"main.go", filepath.FromSlash(".idea/x"), filepath.FromSlash(".aixecutor/runs/r/run.yaml")}
+	if got := g.filterExcluded(in); strings.Join(got, ",") != strings.Join(in, ",") {
+		t.Fatalf("filterExcluded with no config = %v; want input unchanged", got)
+	}
+
+	g.SetExcludePrefixes(filepath.FromSlash(".aixecutor/runs"))
+	g.SetExcludeNames(".idea", ".DS_Store")
+
+	got := g.filterExcluded([]string{
+		"main.go",
+		filepath.FromSlash("pkg/util.go"),
+		filepath.FromSlash(".aixecutor/runs/r/run.yaml"), // prefix
+		filepath.FromSlash(".idea/workspace.xml"),        // name at root
+		filepath.FromSlash("web/.idea/x"),                // name at depth
+		filepath.FromSlash("assets/.DS_Store"),           // name, file
+		filepath.FromSlash(".aixecutor/runs-archive/k"),  // shares prefix string only → kept
+	})
+	want := []string{
+		"main.go",
+		filepath.FromSlash("pkg/util.go"),
+		filepath.FromSlash(".aixecutor/runs-archive/k"),
+	}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("filterExcluded = %v; want %v", got, want)
+	}
+}

@@ -89,6 +89,13 @@ type Gateway struct {
 	// which is the recursion guard: a run dir can never be snapshotted into its own
 	// .baseline. nil/empty means no exclusion (the historical behavior).
 	excludePrefixes []string
+	// excludeNames is a set of single path-component names (e.g. ".idea", ".vscode",
+	// ".DS_Store", "node_modules") dropped at ANY depth: a path is excluded when any
+	// of its segments equals a configured name. This is distinct from excludePrefixes,
+	// which anchors at the repo root; names match wherever they occur. It lets the tool
+	// keep editor/tool droppings out of diffs and reviews without the user gitignoring
+	// them. nil/empty means no name exclusion.
+	excludeNames []string
 }
 
 // Open discovers the repository containing dir and returns a Gateway rooted at
@@ -126,6 +133,16 @@ func (g *Gateway) RepoRoot() string { return g.repoRoot }
 // set gates the baseline and the full diff and the two stay symmetric.
 func (g *Gateway) SetExcludePrefixes(prefixes ...string) {
 	g.excludePrefixes = cleanPrefixes(prefixes)
+}
+
+// SetExcludeNames configures the single-component names whose occurrence as ANY
+// path segment excludes a path from CaptureBaseline, FullDiff, SnapshotPaths and
+// Manifest (see the excludeNames field). Each entry is trimmed; entries that are
+// empty or not a single path component (containing a separator, or "."/"..") are
+// dropped. Calling it again replaces the set. Unlike prefixes, names are not
+// anchored at the repo root — they match at any depth.
+func (g *Gateway) SetExcludeNames(names ...string) {
+	g.excludeNames = cleanNames(names)
 }
 
 // IsRepo reports whether the gateway's repoRoot is inside a git work tree. It

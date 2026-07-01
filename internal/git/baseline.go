@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -159,13 +160,37 @@ func cleanPrefixes(prefixes []string) []string {
 	return out
 }
 
+// cleanNames normalizes a list of exclusion names. Each is whitespace-trimmed;
+// entries that are empty or not a single path component — i.e. that contain a
+// separator, or are "." / ".." — are dropped, since a name matches a single path
+// segment at any depth (unlike a prefix). The result is de-duplicated and sorted
+// for determinism.
+func cleanNames(names []string) []string {
+	seen := make(map[string]struct{}, len(names))
+	out := make([]string, 0, len(names))
+	for _, n := range names {
+		n = strings.TrimSpace(n)
+		if n == "" || n == "." || n == ".." || strings.ContainsRune(n, filepath.Separator) || strings.ContainsRune(n, '/') {
+			continue
+		}
+		if _, ok := seen[n]; ok {
+			continue
+		}
+		seen[n] = struct{}{}
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out
+}
+
 // filterExcluded drops every repo-relative path that lies under one of the
-// gateway's configured exclude prefixes (g.excludePrefixes). It is applied to the
-// enumerated file set in BOTH CaptureBaseline and FullDiff, so the baseline and
-// the full diff's current side exclude the same paths and stay symmetric. With no
-// prefixes configured it returns rels unchanged (cheap fast path).
+// gateway's configured exclude prefixes (g.excludePrefixes) or whose any segment
+// matches a configured exclude name (g.excludeNames). It is applied to the
+// enumerated file set in CaptureBaseline, FullDiff, SnapshotPaths and Manifest, so
+// every read-side diff excludes the same paths and stays symmetric. With no
+// prefixes and no names configured it returns rels unchanged (cheap fast path).
 func (g *Gateway) filterExcluded(rels []string) []string {
-	if len(g.excludePrefixes) == 0 {
+	if len(g.excludePrefixes) == 0 && len(g.excludeNames) == 0 {
 		return rels
 	}
 	out := rels[:0:0] // fresh backing array; do not alias the input
@@ -178,15 +203,25 @@ func (g *Gateway) filterExcluded(rels []string) []string {
 	return out
 }
 
-// isExcluded reports whether the cleaned repo-relative path rel lies at or under
-// any configured exclude prefix. A path is excluded when it equals a prefix or is
-// nested beneath it (prefix + separator), so "x/runs" matches "x/runs" and
-// "x/runs/<id>/run.yaml" but never "x/runsfoo" (segment-boundary match only).
+// isExcluded reports whether the cleaned repo-relative path rel is excluded. A
+// path is excluded when it lies at or under a configured prefix — it equals a
+// prefix or is nested beneath it (prefix + separator), so "x/runs" matches
+// "x/runs" and "x/runs/<id>/run.yaml" but never "x/runsfoo" (segment-boundary
+// match only) — OR when any of its path segments equals a configured name, so
+// ".idea" matches ".idea/workspace.xml" and "sub/dir/.idea/x" at any depth but
+// never "ideas/x" (whole-segment match only).
 func (g *Gateway) isExcluded(rel string) bool {
 	clean := filepath.Clean(rel)
 	for _, pre := range g.excludePrefixes {
 		if clean == pre || strings.HasPrefix(clean, pre+string(filepath.Separator)) {
 			return true
+		}
+	}
+	if len(g.excludeNames) > 0 {
+		for _, seg := range strings.Split(clean, string(filepath.Separator)) {
+			if slices.Contains(g.excludeNames, seg) {
+				return true
+			}
 		}
 	}
 	return false

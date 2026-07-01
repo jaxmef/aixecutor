@@ -310,6 +310,17 @@ git:
   policy: read-only               # read-only | allow-worktree
   # mutating git (commit/push/add/reset/stash/merge/rebase/...) is NEVER permitted.
 
+ignore:                           # dir/file NAMES dropped from diffs & reviews at ANY depth.
+  - .idea                         #   Applies to in-repo AND workspace diffs, and to the
+  - .vscode                       #   non-git discovery walk. Matches a path SEGMENT anywhere
+  - .DS_Store                     #   (not a leading prefix); runsDir stays excluded on top.
+  - node_modules                  #   Replaces WHOLESALE on merge (list semantics, §4.1) — an
+  - vendor                        #   override supplies the full list, it does not append.
+  - dist
+  - build
+  - .next
+  - target
+
 backlog:                          # backlog runner / driver mode
   dir: ""                         # default backlog directory; `backlog run [dir]` overrides
   gate: manual                    # manual | stop-on-finding | auto
@@ -317,13 +328,6 @@ backlog:                          # backlog runner / driver mode
 workspace:                        # multi-root operation
   root: ""                        # workspace root; "" = single repo / cwd. --workspace overrides
   maxDepth: 4                     # how deep beneath root to discover git repos (>= 1)
-  ignore:                         # dir names skipped when walking NON-git areas (.git + runsDir
-    - node_modules                #   are always skipped)
-    - vendor
-    - dist
-    - build
-    - .next
-    - target
 ```
 
 **Model aliases:** for the `claude` harness, `opus`/`sonnet`/`haiku` are accepted and
